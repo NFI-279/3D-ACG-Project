@@ -34,7 +34,22 @@ void Window::init()
 		std::cout << "Successfully initializing glfw!" << std::endl;
 	}
 
-	window = glfwCreateWindow(width, height, name, NULL, NULL);
+	// window = glfwCreateWindow(width, height, name, NULL, NULL);
+
+	// for fullscreen on start
+	GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+	const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+
+	width = mode->width;
+	height = mode->height;
+
+	window = glfwCreateWindow(
+		width,
+		height,
+		name,
+		monitor,   // <-- fullscreen here
+		NULL
+	);
 
 	if (window == NULL)
 	{
