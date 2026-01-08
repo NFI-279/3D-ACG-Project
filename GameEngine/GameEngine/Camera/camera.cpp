@@ -94,4 +94,15 @@ glm::vec3 Camera::getCameraUp()
 	return cameraUp;
 }
 
+void Camera::setCameraPosition(glm::vec3 pos)
+{
+	cameraPosition = pos;
+}
+
+void Camera::setCameraViewDirection(glm::vec3 dir)
+{
+	cameraViewDirection = glm::normalize(dir);
+	cameraRight = glm::normalize(glm::cross(cameraViewDirection, glm::vec3(0, 1, 0)));
+	cameraUp = glm::normalize(glm::cross(cameraRight, cameraViewDirection));
+}
 

@@ -13,8 +13,21 @@ float lastFrame = 0.0f;
 Window window("Game Engine", 800, 800);
 Camera camera;
 
+// Light
 glm::vec3 lightColor = glm::vec3(1.0f);
 glm::vec3 lightPos = glm::vec3(-180.0f, 100.0f, -200.0f);
+
+// Player
+glm::vec3 playerPos = glm::vec3(0.0f, -19.0f, 0.0f);
+float playerYaw = 0.0f; // rotation Y axis
+
+// Camera
+float playerSpeed = 100.0f;     
+float rotationSpeed = 90.0f;
+float camYaw = -90.0f;
+float camPitch = -20.0f;
+float mouseSensitivity = 0.1f;
+float cameraDistance = 12.0f;
 
 int main()
 {
@@ -82,16 +95,72 @@ int main()
 	Mesh box = loader.loadObj("Resources/Models/cube.obj", textures);
 	Mesh plane = loader.loadObj("Resources/Models/plane.obj", textures3);
 
+	// ACTIVATE THIS IN ORDER TO DISABLE THE MOUSE IN THE GAME
+	//glfwSetInputMode(window.getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+	static double lastX = window.getWidth() / 2.0;
+	static double lastY = window.getHeight() / 2.0;
+
 	//check if we close the window or press the escape button
 	while (!window.isPressed(GLFW_KEY_ESCAPE) &&
 		glfwWindowShouldClose(window.getWindow()) == 0)
 	{
 		window.clear();
+
+		// Time
 		float currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
+		float velocity = playerSpeed * deltaTime;
+		float rotVelocity = rotationSpeed * deltaTime;
 
-		processKeyboardInput();
+		// Mouse Input
+		double xpos, ypos;
+		glfwGetCursorPos(window.getWindow(), &xpos, &ypos);
+		float xoffset = (xpos - lastX) * mouseSensitivity;
+		float yoffset = (lastY - ypos) * mouseSensitivity;
+		lastX = xpos;
+		lastY = ypos;
+
+		camYaw += xoffset;
+		camPitch += yoffset;
+		camPitch = glm::clamp(camPitch, -60.0f, 10.0f);
+
+		// Camera Directions
+		glm::vec3 camForward = camera.getCameraViewDirection();
+		camForward.y = 0.0f;
+		camForward = glm::normalize(camForward);
+		glm::vec3 camRight = glm::normalize(glm::cross(camForward, glm::vec3(0, 1, 0)));
+
+		// Player Movement
+		glm::vec3 moveDir(0.0f);
+
+		if (window.isPressed(GLFW_KEY_W)) moveDir += camForward;
+		if (window.isPressed(GLFW_KEY_S)) moveDir -= camForward;
+		if (window.isPressed(GLFW_KEY_A)) moveDir -= camRight;
+		if (window.isPressed(GLFW_KEY_D)) moveDir += camRight;
+
+		if (glm::length(moveDir) > 0.001f)
+		{
+			moveDir = glm::normalize(moveDir);
+			playerPos += moveDir * velocity;
+			playerYaw = glm::degrees(atan2(moveDir.z, moveDir.x));
+		}
+
+		// Ground 
+		playerPos.y = -19.0f;
+
+		// Camera orbit -- MATH;
+		glm::vec3 offset;
+		offset.x = cos(glm::radians(camYaw)) * cos(glm::radians(camPitch));
+		offset.y = sin(glm::radians(camPitch));
+		offset.z = sin(glm::radians(camYaw)) * cos(glm::radians(camPitch));
+
+		glm::vec3 cameraPos = playerPos - offset * cameraDistance;
+		camera.setCameraPosition(cameraPos);
+		camera.setCameraViewDirection(playerPos - cameraPos);
+
+		// processKeyboardInput();
 
 		//test mouse input
 		if (window.isMousePressed(GLFW_MOUSE_BUTTON_LEFT))
@@ -124,9 +193,13 @@ int main()
 
 		GLuint MatrixID2 = glGetUniformLocation(shader.getId(), "MVP");
 		GLuint ModelMatrixID = glGetUniformLocation(shader.getId(), "model");
-
-		ModelMatrix = glm::mat4(1.0);
-		ModelMatrix = glm::translate(ModelMatrix, glm::vec3(0.0f, 0.0f, 0.0f));
+		ModelMatrix = glm::mat4(1.0f);
+		ModelMatrix = glm::translate(ModelMatrix, playerPos);
+		ModelMatrix = glm::rotate(
+			ModelMatrix,
+			glm::radians(playerYaw),
+			glm::vec3(0.0f, 1.0f, 0.0f)
+		);
 		MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
 		glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
 		glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
@@ -145,36 +218,36 @@ int main()
 		glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
 
 		plane.draw(shader);
-
+		
 		window.update();
 	}
 }
 
 void processKeyboardInput()
 {
-	float cameraSpeed = 30 * deltaTime;
+	//float cameraSpeed = 30 * deltaTime;
 
-	//translation
-	if (window.isPressed(GLFW_KEY_W))
-		camera.keyboardMoveFront(cameraSpeed);
-	if (window.isPressed(GLFW_KEY_S))
-		camera.keyboardMoveBack(cameraSpeed);
-	if (window.isPressed(GLFW_KEY_A))
-		camera.keyboardMoveLeft(cameraSpeed);
-	if (window.isPressed(GLFW_KEY_D))
-		camera.keyboardMoveRight(cameraSpeed);
-	if (window.isPressed(GLFW_KEY_R))
-		camera.keyboardMoveUp(cameraSpeed);
-	if (window.isPressed(GLFW_KEY_F))
-		camera.keyboardMoveDown(cameraSpeed);
+	////translation
+	//if (window.isPressed(GLFW_KEY_W))
+	//	camera.keyboardMoveFront(cameraSpeed);
+	//if (window.isPressed(GLFW_KEY_S))
+	//	camera.keyboardMoveBack(cameraSpeed);
+	//if (window.isPressed(GLFW_KEY_A))
+	//	camera.keyboardMoveLeft(cameraSpeed);
+	//if (window.isPressed(GLFW_KEY_D))
+	//	camera.keyboardMoveRight(cameraSpeed);
+	//if (window.isPressed(GLFW_KEY_R))
+	//	camera.keyboardMoveUp(cameraSpeed);
+	//if (window.isPressed(GLFW_KEY_F))
+	//	camera.keyboardMoveDown(cameraSpeed);
 
-	//rotation
-	if (window.isPressed(GLFW_KEY_LEFT))
-		camera.rotateOy(cameraSpeed);
-	if (window.isPressed(GLFW_KEY_RIGHT))
-		camera.rotateOy(-cameraSpeed);
-	if (window.isPressed(GLFW_KEY_UP))
-		camera.rotateOx(cameraSpeed);
-	if (window.isPressed(GLFW_KEY_DOWN))
-		camera.rotateOx(-cameraSpeed);
+	////rotation
+	//if (window.isPressed(GLFW_KEY_LEFT))
+	//	camera.rotateOy(cameraSpeed);
+	//if (window.isPressed(GLFW_KEY_RIGHT))
+	//	camera.rotateOy(-cameraSpeed);
+	//if (window.isPressed(GLFW_KEY_UP))
+	//	camera.rotateOx(cameraSpeed);
+	//if (window.isPressed(GLFW_KEY_DOWN))
+	//	camera.rotateOx(-cameraSpeed);
 }
