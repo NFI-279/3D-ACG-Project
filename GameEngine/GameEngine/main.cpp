@@ -7,7 +7,7 @@
 #include "imgui.h"
 #include "GUI/GUIManager.h"
 
-void processKeyboardInput ();
+void processKeyboardInput();
 
 float deltaTime = 0.0f;	// time between current frame and last frame
 float lastFrame = 0.0f;
@@ -24,7 +24,7 @@ glm::vec3 playerPos = glm::vec3(0.0f, -19.0f, 0.0f);
 float playerYaw = 0.0f; // rotation Y axis
 
 // Camera
-float playerSpeed = 100.0f;     
+float playerSpeed = 100.0f;
 float rotationSpeed = 90.0f;
 float camYaw = -90.0f;
 float camPitch = -20.0f;
@@ -32,12 +32,11 @@ float mouseSensitivity = 0.1f;
 float cameraDistance = 12.0f;
 
 GUIManager gui; // Create my instance for the GUI
-static bool openMenu = false; // To manage the G key press
+static bool openMenu = false; // To manage the Insert key press
 
 int main()
 {
 	gui.Init(window.getWindow());
-
 
 	glClearColor(0.2f, 0.8f, 1.0f, 1.0f);
 
@@ -75,7 +74,7 @@ int main()
 	vert[2].normals = glm::normalize(glm::cross(vert[3].pos - vert[2].pos, vert[1].pos - vert[2].pos));
 	vert[3].normals = glm::normalize(glm::cross(vert[0].pos - vert[3].pos, vert[2].pos - vert[3].pos));
 
-	std::vector<int> ind = { 0, 1, 3,   
+	std::vector<int> ind = { 0, 1, 3,
 		1, 2, 3 };
 
 	std::vector<Texture> textures;
@@ -97,28 +96,45 @@ int main()
 	Mesh mesh(vert, ind, textures3);
 
 	// Create Obj files - easier :)
-	// we can add here our textures :)
 	MeshLoaderObj loader;
 	Mesh sun = loader.loadObj("Resources/Models/sphere.obj");
 	Mesh box = loader.loadObj("Resources/Models/cube.obj", textures);
 	Mesh plane = loader.loadObj("Resources/Models/plane.obj", textures3);
 
-	// ACTIVATE THIS IN ORDER TO DISABLE THE MOUSE IN THE GAME
-	//glfwSetInputMode(window.getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-
 	static double lastX = window.getWidth() / 2.0;
 	static double lastY = window.getHeight() / 2.0;
+
+	// Stats counters
+	int totalRenderedObjects = 0;
+
+	// Variables FPS Calculation
+	float fpsAccumulator = 0.0f;
+	int fpsFrameCount = 0;
+	float displayFPS = 0.0f;
 
 	//check if we close the window or press the escape button
 	while (!window.isPressed(GLFW_KEY_ESCAPE) &&
 		glfwWindowShouldClose(window.getWindow()) == 0)
 	{
 		window.clear();
+		totalRenderedObjects = 0;
 
-		// Time
 		float currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
+
+		// fps calculation
+		fpsAccumulator += deltaTime;
+		fpsFrameCount++;
+
+		// Update the FPS display only every 1 second
+		if (fpsAccumulator >= 1.0f)
+		{
+			displayFPS = fpsFrameCount / fpsAccumulator;
+			fpsFrameCount = 0;
+			fpsAccumulator = 0.0f;
+		}
+
 		float velocity = playerSpeed * deltaTime;
 		float rotVelocity = rotationSpeed * deltaTime;
 
@@ -131,12 +147,12 @@ int main()
 		lastY = ypos;
 
 		ImGuiIO& io = ImGui::GetIO();
-		if (!io.WantCaptureMouse && !gui.showGUI) // extra safety to prevent camera movement while GUI open
-		{
+		//if (!io.WantCaptureMouse && !gui.showGUI)
+		//{
 			camYaw += xoffset;
 			camPitch += yoffset;
 			camPitch = glm::clamp(camPitch, -60.0f, 10.0f);
-		}
+			//}
 
 		// Camera Directions
 		glm::vec3 camForward = camera.getCameraViewDirection();
@@ -146,13 +162,12 @@ int main()
 
 		// Player Movement
 		glm::vec3 moveDir(0.0f);
-		if (!gui.showGUI) // prevent movement while GUI open
-		{
+		//if (!gui.showGUI)
+		//{
 			if (window.isPressed(GLFW_KEY_W)) moveDir += camForward;
 			if (window.isPressed(GLFW_KEY_S)) moveDir -= camForward;
 			if (window.isPressed(GLFW_KEY_A)) moveDir -= camRight;
 			if (window.isPressed(GLFW_KEY_D)) moveDir += camRight;
-
 
 			if (glm::length(moveDir) > 0.001f)
 			{
@@ -160,12 +175,12 @@ int main()
 				playerPos += moveDir * velocity;
 				playerYaw = glm::degrees(atan2(moveDir.z, moveDir.x));
 			}
-		}
+			//}
 
 		// Ground 
 		playerPos.y = -19.0f;
 
-		// Camera orbit -- MATH;
+		// Camera orbit
 		glm::vec3 offset;
 		offset.x = cos(glm::radians(camYaw)) * cos(glm::radians(camPitch));
 		offset.y = sin(glm::radians(camPitch));
@@ -175,14 +190,7 @@ int main()
 		camera.setCameraPosition(cameraPos);
 		camera.setCameraViewDirection(playerPos - cameraPos);
 
-		// processKeyboardInput();
-
-		//test mouse input
-		if (window.isMousePressed(GLFW_MOUSE_BUTTON_LEFT))
-		{
-			std::cout << "Pressing mouse button" << std::endl;
-		}
-		 //// Code for the light ////
+		//// Code for the light ////
 
 		sunShader.use();
 
@@ -191,14 +199,13 @@ int main()
 
 		GLuint MatrixID = glGetUniformLocation(sunShader.getId(), "MVP");
 
-		//Test for one Obj loading = light source
-
 		glm::mat4 ModelMatrix = glm::mat4(1.0);
 		ModelMatrix = glm::translate(ModelMatrix, lightPos);
 		glm::mat4 MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
 		glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
 
 		sun.draw(sunShader);
+		totalRenderedObjects++;
 
 		//// End code for the light ////
 
@@ -223,6 +230,7 @@ int main()
 		glUniform3f(glGetUniformLocation(shader.getId(), "viewPos"), camera.getCameraPosition().x, camera.getCameraPosition().y, camera.getCameraPosition().z);
 
 		box.draw(shader);
+		totalRenderedObjects++;
 
 		///// Test plane Obj file //////
 
@@ -233,15 +241,16 @@ int main()
 		glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
 
 		plane.draw(shader);
+		totalRenderedObjects++;
 
-		gui.Render(); // Render the GUI
+		gui.Render(playerPos, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects);
 
-		if (window.isPressed(GLFW_KEY_INSERT)) // Insert key to open/close the menu
+		if (window.isPressed(GLFW_KEY_INSERT))
 		{
 			if (!openMenu)
 			{
-				gui.showGUI = !gui.showGUI; // Toggle visibility
-				if (!gui.showGUI) // If we close the menu, reset mouse buttons to avoid stuck issues
+				gui.showGUI = !gui.showGUI;
+				if (!gui.showGUI)
 				{
 					ImGuiIO& io = ImGui::GetIO();
 					io.MouseDown[0] = false;
@@ -249,49 +258,24 @@ int main()
 					io.MouseDown[2] = false;
 					io.WantCaptureMouse = false;
 				}
-				openMenu = true;            // Mark as pressed
+				openMenu = true;
 			}
 		}
 		else
 		{
-			openMenu = false; // Reset when key is released
+			openMenu = false;
 		}
 
 		if (gui.changeBackground)
-			glClearColor(0.8f, 0.2f, 0.2f, 1.0f); // Red background
+			glClearColor(0.8f, 0.2f, 0.2f, 1.0f);
 		else
-			glClearColor(0.2f, 0.8f, 1.0f, 1.0f); // Default blue
-		
+			glClearColor(0.2f, 0.8f, 1.0f, 1.0f);
+
 		window.update();
 	}
-	gui.Shutdown(); // Shutdown the GUI
+	gui.Shutdown();
 }
 
 void processKeyboardInput()
 {
-	//float cameraSpeed = 30 * deltaTime;
-
-	////translation
-	//if (window.isPressed(GLFW_KEY_W))
-	//	camera.keyboardMoveFront(cameraSpeed);
-	//if (window.isPressed(GLFW_KEY_S))
-	//	camera.keyboardMoveBack(cameraSpeed);
-	//if (window.isPressed(GLFW_KEY_A))
-	//	camera.keyboardMoveLeft(cameraSpeed);
-	//if (window.isPressed(GLFW_KEY_D))
-	//	camera.keyboardMoveRight(cameraSpeed);
-	//if (window.isPressed(GLFW_KEY_R))
-	//	camera.keyboardMoveUp(cameraSpeed);
-	//if (window.isPressed(GLFW_KEY_F))
-	//	camera.keyboardMoveDown(cameraSpeed);
-
-	////rotation
-	//if (window.isPressed(GLFW_KEY_LEFT))
-	//	camera.rotateOy(cameraSpeed);
-	//if (window.isPressed(GLFW_KEY_RIGHT))
-	//	camera.rotateOy(-cameraSpeed);
-	//if (window.isPressed(GLFW_KEY_UP))
-	//	camera.rotateOx(cameraSpeed);
-	//if (window.isPressed(GLFW_KEY_DOWN))
-	//	camera.rotateOx(-cameraSpeed);
 }
