@@ -4,6 +4,8 @@
 #include "Model Loading\mesh.h"
 #include "Model Loading\texture.h"
 #include "Model Loading\meshLoaderObj.h"
+#include "imgui.h"
+#include "GUI/GUIManager.h"
 
 void processKeyboardInput ();
 
@@ -29,8 +31,14 @@ float camPitch = -20.0f;
 float mouseSensitivity = 0.1f;
 float cameraDistance = 12.0f;
 
+GUIManager gui; // Create my instance for the GUI
+static bool openMenu = false; // To manage the G key press
+
 int main()
 {
+	gui.Init(window.getWindow());
+
+
 	glClearColor(0.2f, 0.8f, 1.0f, 1.0f);
 
 	//building and compiling shader program
@@ -122,9 +130,13 @@ int main()
 		lastX = xpos;
 		lastY = ypos;
 
-		camYaw += xoffset;
-		camPitch += yoffset;
-		camPitch = glm::clamp(camPitch, -60.0f, 10.0f);
+		ImGuiIO& io = ImGui::GetIO();
+		if (!io.WantCaptureMouse && !gui.showGUI) // extra safety to prevent camera movement while GUI open
+		{
+			camYaw += xoffset;
+			camPitch += yoffset;
+			camPitch = glm::clamp(camPitch, -60.0f, 10.0f);
+		}
 
 		// Camera Directions
 		glm::vec3 camForward = camera.getCameraViewDirection();
@@ -134,17 +146,20 @@ int main()
 
 		// Player Movement
 		glm::vec3 moveDir(0.0f);
-
-		if (window.isPressed(GLFW_KEY_W)) moveDir += camForward;
-		if (window.isPressed(GLFW_KEY_S)) moveDir -= camForward;
-		if (window.isPressed(GLFW_KEY_A)) moveDir -= camRight;
-		if (window.isPressed(GLFW_KEY_D)) moveDir += camRight;
-
-		if (glm::length(moveDir) > 0.001f)
+		if (!gui.showGUI) // prevent movement while GUI open
 		{
-			moveDir = glm::normalize(moveDir);
-			playerPos += moveDir * velocity;
-			playerYaw = glm::degrees(atan2(moveDir.z, moveDir.x));
+			if (window.isPressed(GLFW_KEY_W)) moveDir += camForward;
+			if (window.isPressed(GLFW_KEY_S)) moveDir -= camForward;
+			if (window.isPressed(GLFW_KEY_A)) moveDir -= camRight;
+			if (window.isPressed(GLFW_KEY_D)) moveDir += camRight;
+
+
+			if (glm::length(moveDir) > 0.001f)
+			{
+				moveDir = glm::normalize(moveDir);
+				playerPos += moveDir * velocity;
+				playerYaw = glm::degrees(atan2(moveDir.z, moveDir.x));
+			}
 		}
 
 		// Ground 
@@ -218,9 +233,30 @@ int main()
 		glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
 
 		plane.draw(shader);
+
+		gui.Render(); // Render the GUI
+
+		if (window.isPressed(GLFW_KEY_INSERT)) // Insert key to open/close the menu
+		{
+			if (!openMenu)
+			{
+				gui.showGUI = !gui.showGUI; // Toggle visibility
+				openMenu = true;            // Mark as pressed
+			}
+		}
+		else
+		{
+			openMenu = false; // Reset when key is released
+		}
+
+		if (gui.changeBackground)
+			glClearColor(0.8f, 0.2f, 0.2f, 1.0f); // Red background
+		else
+			glClearColor(0.2f, 0.8f, 1.0f, 1.0f); // Default blue
 		
 		window.update();
 	}
+	gui.Shutdown(); // Shutdown the GUI
 }
 
 void processKeyboardInput()
