@@ -241,6 +241,14 @@ int main()
 			if (!openMenu)
 			{
 				gui.showGUI = !gui.showGUI; // Toggle visibility
+				if (!gui.showGUI) // If we close the menu, reset mouse buttons to avoid stuck issues
+				{
+					ImGuiIO& io = ImGui::GetIO();
+					io.MouseDown[0] = false;
+					io.MouseDown[1] = false;
+					io.MouseDown[2] = false;
+					io.WantCaptureMouse = false;
+				}
 				openMenu = true;            // Mark as pressed
 			}
 		}
