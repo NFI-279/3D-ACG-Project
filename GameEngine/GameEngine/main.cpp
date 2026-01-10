@@ -9,6 +9,13 @@
 
 void processKeyboardInput();
 
+struct Tower {
+	glm::vec3 position;
+	glm::vec3 scale;
+	bool rotateY;
+};
+std::vector<Tower> towers;
+
 float deltaTime = 0.0f;	// time between current frame and last frame
 float lastFrame = 0.0f;
 
@@ -31,6 +38,12 @@ float camPitch = -20.0f;
 float mouseSensitivity = 0.1f;
 float cameraDistance = 12.0f;
 
+//Map Boundaries
+float mapMinX = -90.0f;
+float mapMaxX = 90.0f;
+float mapMinZ = -80.0f;
+float mapMaxZ = 65.0f;
+
 GUIManager gui; // Create my instance for the GUI
 static bool openMenu = false; // To manage the Insert key press
 
@@ -47,7 +60,8 @@ int main()
 	//Textures
 	GLuint tex = loadBMP("Resources/Textures/wood.bmp");
 	GLuint tex2 = loadBMP("Resources/Textures/rock.bmp");
-	GLuint tex3 = loadBMP("Resources/Textures/orange.bmp");
+	GLuint tex3 = loadBMP("Resources/Textures/city1.bmp");
+	GLuint tex4 = loadBMP("Resources/Textures/tower1.bmp");
 
 	glEnable(GL_DEPTH_TEST);
 
@@ -92,6 +106,11 @@ int main()
 	textures3[0].id = tex3;
 	textures3[0].type = "texture_diffuse";
 
+	std::vector<Texture> textures4;
+	textures4.push_back(Texture());
+	textures4[0].id = tex4;
+	textures4[0].type = "texture_diffuse";
+
 
 	Mesh mesh(vert, ind, textures3);
 
@@ -100,6 +119,18 @@ int main()
 	Mesh sun = loader.loadObj("Resources/Models/sphere.obj");
 	Mesh box = loader.loadObj("Resources/Models/cube.obj", textures);
 	Mesh plane = loader.loadObj("Resources/Models/plane.obj", textures3);
+	//Mesh player = loader.loadObj("Resources/Models/player.obj", textures2);
+	Mesh towerMesh = loader.loadObj("Resources/Models/plane.obj", textures4);
+
+
+	// Create some towers
+	//towers.push_back({ glm::vec3(30.0f, -19.5f, 20.0f), glm::vec3(10.0f, 80.0f, 10.0f) });
+	//towers.push_back({ glm::vec3(-40.0f, -19.5f, -10.0f), glm::vec3(15.0f, 120.0f, 15.0f) });
+	towers.push_back({ glm::vec3(44.0f, -12.0f, 2.0f), glm::vec3(0.154f, 0.1f, 0.154f), false });
+	towers.push_back({ glm::vec3(44.0f, -12.0f, 30.0f), glm::vec3(0.154f, 0.1f, 0.154f), false });
+	towers.push_back({ glm::vec3(30.0f, -12.0f, 16.0f), glm::vec3(0.154f, 0.1f, 0.154f), true });
+	towers.push_back({ glm::vec3(58.0f, -12.0f, 16.0f), glm::vec3(0.154f, 0.1f, 0.154f), true });
+
 
 	static double lastX = window.getWidth() / 2.0;
 	static double lastY = window.getHeight() / 2.0;
@@ -178,7 +209,9 @@ int main()
 			//}
 
 		// Ground 
-		playerPos.y = -19.0f;
+		playerPos.x = glm::clamp(playerPos.x, mapMinX, mapMaxX);
+		playerPos.y = -19.5f;
+		playerPos.z = glm::clamp(playerPos.z, mapMinZ, mapMaxZ);
 
 		// Camera orbit
 		glm::vec3 offset;
@@ -222,6 +255,10 @@ int main()
 			glm::radians(playerYaw),
 			glm::vec3(0.0f, 1.0f, 0.0f)
 		);
+		/*ModelMatrix = glm::scale(
+			ModelMatrix,
+			glm::vec3(0.0125f)
+		);*/
 		MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
 		glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
 		glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
@@ -242,6 +279,21 @@ int main()
 
 		plane.draw(shader);
 		totalRenderedObjects++;
+
+		for (const Tower & tower : towers) { 
+			ModelMatrix = glm::mat4(1.0f); 
+			ModelMatrix = glm::translate(ModelMatrix, tower.position); 
+			ModelMatrix = glm::rotate(ModelMatrix, (90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+			if (tower.rotateY) {
+				ModelMatrix = glm::rotate(ModelMatrix, (90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+			}
+			ModelMatrix = glm::scale(ModelMatrix, tower.scale); 
+			MVP = ProjectionMatrix * ViewMatrix * ModelMatrix; 
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]); 
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]); 
+			towerMesh.draw(shader); 
+			totalRenderedObjects++; 
+		}
 
 		gui.Render(playerPos, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects);
 
