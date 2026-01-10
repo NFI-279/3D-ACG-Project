@@ -152,6 +152,11 @@
     <ClInclude Include="External\imgui\imstb_textedit.h" />
     <ClInclude Include="External\imgui\imstb_truetype.h" />
     <ClInclude Include="Graphics\window.h" />
+    <ClInclude Include="GUI\Fonts\FaSolid.h" />
+    <ClInclude Include="GUI\Fonts\IconsFontAwesome7.h" />
+    <ClInclude Include="GUI\Fonts\InterBold.h" />
+    <ClInclude Include="GUI\Fonts\InterMedium.h" />
+    <ClInclude Include="GUI\Fonts\JetBrains.h" />
     <ClInclude Include="GUI\GUIManager.h" />
     <ClInclude Include="Model Loading\meshLoaderObj.h" />
     <ClInclude Include="Model Loading\mesh.h" />

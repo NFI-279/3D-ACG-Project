@@ -9,11 +9,18 @@
 class GUIManager
 {
 public:
+
+    ImFont* fontHeader = nullptr; // Font for "Game Control Panel"
+	ImFont* fontUI = nullptr;     // Default UI font - buttons, text
+    ImFont* fontSmall = nullptr; // For Section Headers
+    ImFont* fontMono = nullptr; // For FPS, Logs, Coords
+
+
     bool showGUI = true;
     bool changeBackground = false;
 
     // Scene controls that we referenced in main
-    bool dayNightCycle = true;
+    bool dayNightCycle = false;
     bool enableAnimation = false;
 
     // Log storage
