@@ -16,6 +16,12 @@ struct Tower {
 };
 std::vector<Tower> towers;
 
+struct Tree {
+	glm::vec3 position;
+	float scale;
+};
+std::vector<Tree> trees;
+
 float deltaTime = 0.0f;	// time between current frame and last frame
 float lastFrame = 0.0f;
 
@@ -27,7 +33,7 @@ glm::vec3 lightColor = glm::vec3(1.0f);
 glm::vec3 lightPos = glm::vec3(-180.0f, 100.0f, -200.0f);
 
 // Player
-glm::vec3 playerPos = glm::vec3(0.0f, -19.0f, 0.0f);
+glm::vec3 playerPos = glm::vec3(1.0f, -19.0f, 1.0f);
 float playerYaw = 0.0f; // rotation Y axis
 
 // Camera
@@ -39,10 +45,17 @@ float mouseSensitivity = 0.1f;
 float cameraDistance = 12.0f;
 
 //Map Boundaries
-float mapMinX = -90.0f;
-float mapMaxX = 90.0f;
-float mapMinZ = -80.0f;
-float mapMaxZ = 65.0f;
+float mapMinX = -360.0f;
+float mapMaxX = 0.0f;
+float mapMinZ = 0.0f;
+float mapMaxZ = 270.0f;
+
+//Plane
+float baseX = 0.0f;
+float baseZ = 0.0f;
+float stepX = -179.5f;
+float stepZ = 136.85f;
+float groundY = -20.0f;
 
 GUIManager gui; // Create my instance for the GUI
 static bool openMenu = false; // To manage the Insert key press
@@ -121,16 +134,18 @@ int main()
 	Mesh plane = loader.loadObj("Resources/Models/plane.obj", textures3);
 	//Mesh player = loader.loadObj("Resources/Models/player.obj", textures2);
 	Mesh towerMesh = loader.loadObj("Resources/Models/plane.obj", textures4);
+	//Mesh treeMesh = loader.loadObj("Resources/Models/tree1.obj");
 
+	// Create wall for tower
+	towers.push_back({ glm::vec3(-34.0f, 0.0f, 39.0f), glm::vec3(0.154f, 0.1f, 0.154f), false });
+	towers.push_back({ glm::vec3(-34.0f, 0.0f, 66.0f), glm::vec3(0.154f, 0.1f, 0.154f), false });
+	towers.push_back({ glm::vec3(-34.5f, 0.0f, 66.5f), glm::vec3(0.154f, 0.1f, 0.154f), true });
+	towers.push_back({ glm::vec3(-61.5f, 0.0f, 66.5f), glm::vec3(0.154f, 0.1f, 0.154f), true });
 
-	// Create some towers
-	//towers.push_back({ glm::vec3(30.0f, -19.5f, 20.0f), glm::vec3(10.0f, 80.0f, 10.0f) });
-	//towers.push_back({ glm::vec3(-40.0f, -19.5f, -10.0f), glm::vec3(15.0f, 120.0f, 15.0f) });
-	towers.push_back({ glm::vec3(44.0f, -12.0f, 2.0f), glm::vec3(0.154f, 0.1f, 0.154f), false });
-	towers.push_back({ glm::vec3(44.0f, -12.0f, 30.0f), glm::vec3(0.154f, 0.1f, 0.154f), false });
-	towers.push_back({ glm::vec3(30.0f, -12.0f, 16.0f), glm::vec3(0.154f, 0.1f, 0.154f), true });
-	towers.push_back({ glm::vec3(58.0f, -12.0f, 16.0f), glm::vec3(0.154f, 0.1f, 0.154f), true });
-
+	// Trees
+	trees.push_back({ glm::vec3(10.0f, -19.5f, 10.0f), 1.5f });
+	trees.push_back({ glm::vec3(-20.0f, -19.5f, 5.0f), 2.0f });
+	trees.push_back({ glm::vec3(30.0f, -19.5f, -15.0f), 1.2f });
 
 	static double lastX = window.getWidth() / 2.0;
 	static double lastY = window.getHeight() / 2.0;
@@ -180,12 +195,12 @@ int main()
 		ImGuiIO& io = ImGui::GetIO();
 		//if (!io.WantCaptureMouse && !gui.showGUI)
 		//{
-			camYaw += xoffset;
-			camPitch += yoffset;
-			camPitch = glm::clamp(camPitch, -60.0f, 10.0f);
-			//}
+		camYaw += xoffset;
+		camPitch += yoffset;
+		camPitch = glm::clamp(camPitch, -60.0f, 10.0f);
+		//}
 
-		// Camera Directions
+	// Camera Directions
 		glm::vec3 camForward = camera.getCameraViewDirection();
 		camForward.y = 0.0f;
 		camForward = glm::normalize(camForward);
@@ -195,18 +210,18 @@ int main()
 		glm::vec3 moveDir(0.0f);
 		//if (!gui.showGUI)
 		//{
-			if (window.isPressed(GLFW_KEY_W)) moveDir += camForward;
-			if (window.isPressed(GLFW_KEY_S)) moveDir -= camForward;
-			if (window.isPressed(GLFW_KEY_A)) moveDir -= camRight;
-			if (window.isPressed(GLFW_KEY_D)) moveDir += camRight;
+		if (window.isPressed(GLFW_KEY_W)) moveDir += camForward;
+		if (window.isPressed(GLFW_KEY_S)) moveDir -= camForward;
+		if (window.isPressed(GLFW_KEY_A)) moveDir -= camRight;
+		if (window.isPressed(GLFW_KEY_D)) moveDir += camRight;
 
-			if (glm::length(moveDir) > 0.001f)
-			{
-				moveDir = glm::normalize(moveDir);
-				playerPos += moveDir * velocity;
-				playerYaw = glm::degrees(atan2(moveDir.z, moveDir.x));
-			}
-			//}
+		if (glm::length(moveDir) > 0.001f)
+		{
+			moveDir = glm::normalize(moveDir);
+			playerPos += moveDir * velocity;
+			playerYaw = glm::degrees(atan2(moveDir.z, moveDir.x));
+		}
+		//}
 
 		// Ground 
 		playerPos.x = glm::clamp(playerPos.x, mapMinX, mapMaxX);
@@ -243,6 +258,7 @@ int main()
 		//// End code for the light ////
 
 		shader.use();
+		glUniform1i(glGetUniformLocation(shader.getId(), "isTree"), 0);
 
 		///// Test Obj files for box ////
 
@@ -270,30 +286,55 @@ int main()
 		totalRenderedObjects++;
 
 		///// Test plane Obj file //////
+		for (int x = 0; x < 2; x++)
+		{
+			for (int z = 0; z < 2; z++)
+			{
+				ModelMatrix = glm::mat4(1.0f);
+				ModelMatrix = glm::translate(ModelMatrix,
+					glm::vec3(baseX + x * stepX,groundY - (z * 0.01f), baseZ + z * stepZ));
+				MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
+				glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
+				glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
+				plane.draw(shader);
+				totalRenderedObjects++;
+			}
+		}
 
-		ModelMatrix = glm::mat4(1.0);
-		ModelMatrix = glm::translate(ModelMatrix, glm::vec3(0.0f, -20.0f, 0.0f));
-		MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
-		glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
-		glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
-
-		plane.draw(shader);
-		totalRenderedObjects++;
-
-		for (const Tower & tower : towers) { 
-			ModelMatrix = glm::mat4(1.0f); 
-			ModelMatrix = glm::translate(ModelMatrix, tower.position); 
+		for (const Tower& tower : towers) {
+			ModelMatrix = glm::mat4(1.0f);
+			ModelMatrix = glm::translate(ModelMatrix, tower.position);
 			ModelMatrix = glm::rotate(ModelMatrix, (90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
 			if (tower.rotateY) {
 				ModelMatrix = glm::rotate(ModelMatrix, (90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 			}
-			ModelMatrix = glm::scale(ModelMatrix, tower.scale); 
-			MVP = ProjectionMatrix * ViewMatrix * ModelMatrix; 
-			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]); 
-			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]); 
-			towerMesh.draw(shader); 
-			totalRenderedObjects++; 
+			ModelMatrix = glm::scale(ModelMatrix, tower.scale);
+			MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
+			towerMesh.draw(shader);
+			totalRenderedObjects++;
 		}
+
+		for (const Tree& tree : trees)
+		{
+			glUniform1i(glGetUniformLocation(shader.getId(), "isTree"), 1);
+			glUniform1f(glGetUniformLocation(shader.getId(), "trunkHeight"), -17.0f);
+			glUniform3f(glGetUniformLocation(shader.getId(), "trunkColor"), 0.25f, 0.15f, 0.08f);
+			glUniform3f(glGetUniformLocation(shader.getId(), "leavesColor"), 0.12f, 0.35f, 0.18f);
+
+			ModelMatrix = glm::mat4(1.0f);
+			ModelMatrix = glm::translate(ModelMatrix, tree.position);
+			ModelMatrix = glm::scale(ModelMatrix, glm::vec3(tree.scale));
+			MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
+
+			//treeMesh.draw(shader);
+			totalRenderedObjects++;
+		}
+
+		glUniform1i(glGetUniformLocation(shader.getId(), "isTree"), 0);
 
 		gui.Render(playerPos, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects);
 
