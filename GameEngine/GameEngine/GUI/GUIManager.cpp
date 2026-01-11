@@ -77,6 +77,7 @@ void GUIManager::Init(GLFWwindow* window)
     io.Fonts->Build();
     io.FontDefault = fontUI;
 
+    questManager.Init();
 
     // Add some initial logs
     AddLog("[SYSTEM] Engine initialized");
@@ -162,218 +163,222 @@ void TextRightAligned(const char* text, ImVec4 color = ImVec4(1, 1, 1, 1)) {
 
 void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenHeight, float fps, int renderedObjects)
 {
-    if (!showGUI) return;
+    //if (!showGUI) return;
 
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-    // Styling Setup of Window
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.11f, 0.11f, 0.11f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.24f, 0.24f, 0.24f, 1.0f));
-
-    // Header Colors (for Collapsing Headers)
-    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.15f, 0.15f, 0.15f, 1.0f)); // Idle
-    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.20f, 0.20f, 0.20f, 1.0f)); // Hover
-    ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.18f, 0.18f, 0.18f, 1.0f)); // Click
-
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 10));
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f); // Slight rounding on elements
-
-    // Setup Window
-    ImGui::SetNextWindowSize(ImVec2(320, 500), ImGuiCond_FirstUseEver);
-    ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
-
-    if (ImGui::Begin("GamePanel", nullptr, window_flags))
+    questManager.Render(fontUI, fontHeader, fontMono);
+    if (showGUI)
     {
-		// HEADER SECTION
+        // Styling Setup of Window
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.11f, 0.11f, 0.11f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.24f, 0.24f, 0.24f, 1.0f));
+
+        // Header Colors (for Collapsing Headers)
+        ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.15f, 0.15f, 0.15f, 1.0f)); // Idle
+        ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.20f, 0.20f, 0.20f, 1.0f)); // Hover
+        ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.18f, 0.18f, 0.18f, 1.0f)); // Click
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 10));
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f); // Slight rounding on elements
+
+        // Setup Window
+        ImGui::SetNextWindowSize(ImVec2(320, 500), ImGuiCond_FirstUseEver);
+        ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+
+        if (ImGui::Begin("GamePanel", nullptr, window_flags))
         {
-            ImDrawList* drawList = ImGui::GetWindowDrawList();
-            ImVec2 p = ImGui::GetCursorScreenPos();
-
-            // Draw the "Blue Dot". We manually draw this because it glows in the design
-            drawList->AddCircleFilled(ImVec2(p.x + 4, p.y + 9), 4.0f, IM_COL32(59, 130, 246, 255)); // Blue
-
-            // Text Offset
-            ImGui::SetCursorPosX(25);
-
-            // Big Bold Title
-            ImGui::PushFont(fontHeader);
-            ImGui::Text("Game Control Panel");
-            ImGui::PopFont();
-
-            // Version (Right Aligned, Mono Font)
-            ImGui::SameLine();
-            ImGui::PushFont(fontMono);
-            TextRightAligned("v1.0", ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
-            ImGui::PopFont();
-
-            ImGui::Spacing();
-            ImGui::Separator();
-            ImGui::Spacing();
-        }
-
-		// SCENE CONTROLS SECTION
-        ImGui::PushFont(fontSmall); // Small Caps Header
-        
-        if (ImGui::CollapsingHeader("SCENE CONTROLS", ImGuiTreeNodeFlags_DefaultOpen)) // DefaultOpen means it starts expanded
-        {
-            ImGui::PopFont(); // Switch back to Default UI Font (Inter Medium)
-            ImGui::Spacing();
-
-            // "Change Background" Button
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
-            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 6.0f));
-            if (ImGui::Button(ICON_FA_LAYER_GROUP "  Change Background", ImVec2(-1, 0))) {
-                changeBackground = !changeBackground;
-                AddLog("[SYSTEM] Background toggled");
-            }
-            ImGui::PopStyleVar();
-            ImGui::PopStyleColor();
-
-            ImGui::Spacing();
-
-            // Custom Toggles (Inter Medium)
-            if (DrawToggleSwitch("Day / Night Cycle", &dayNightCycle)) {
-                AddLog(dayNightCycle ? "[SCENE] Changed to Night Scene" : "[SCENE] Changed to Day Scene");
-            }
-            ImGui::Spacing();
-            DrawToggleSwitch("Enable Animation", &enableAnimation);
-
-           /* 
-           if (DrawToggleSwitch("Enable Animation", &enableAnimation)) {
-                AddLog(enableAnimation ? "[ANIM] Animation started" : "[ANIM] Animation stopped");
-            }*/
-            ImGui::Spacing();
-        }
-        else
-        {
-            ImGui::PopFont(); // Pop if closed
-        }
-
-        // DEBUG INFORMATION SECTION
-        ImGui::PushFont(fontSmall);
-        if (ImGui::CollapsingHeader("DEBUG INFORMATION", ImGuiTreeNodeFlags_DefaultOpen))
-        {
-            ImGui::PopFont();
-            ImGui::Spacing();
-
-            ImGui::PushFont(fontMono);
-
-            if (ImGui::BeginTable("DebugTable", 2))
+            // HEADER SECTION
             {
-                ImGui::TableSetupColumn("Label");
-                ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthFixed, 150.0f);
+                ImDrawList* drawList = ImGui::GetWindowDrawList();
+                ImVec2 p = ImGui::GetCursorScreenPos();
 
-                // Row 1 FPS
-                ImGui::TableNextRow();
-                ImGui::TableSetColumnIndex(0);
-                ImGui::Text(ICON_FA_WAVE_SQUARE "  FPS");
-                ImGui::TableSetColumnIndex(1);
-                char fpsBuff[32];
-                sprintf_s(fpsBuff, "%.0f", fps);
-                // Highlight FPS in Blue
-                TextRightAligned(fpsBuff, ImVec4(0.29f, 0.62f, 1.0f, 1.0f));
+                // Draw the "Blue Dot". We manually draw this because it glows in the design
+                drawList->AddCircleFilled(ImVec2(p.x + 4, p.y + 9), 4.0f, IM_COL32(59, 130, 246, 255)); // Blue
 
-                // Row 2 Position
-                ImGui::TableNextRow();
-                ImGui::TableSetColumnIndex(0);
-                ImGui::Text(ICON_FA_ARROW_POINTER "  Player Pos");
-                ImGui::TableSetColumnIndex(1);
-                char posBuffer[64];
-                sprintf_s(posBuffer, "%.1f, %.1f, %.1f", playerPos.x, playerPos.y, playerPos.z);
-                TextRightAligned(posBuffer);
+                // Text Offset
+                ImGui::SetCursorPosX(25);
 
-                // Row 3 Resolution
-                ImGui::TableNextRow();
-                ImGui::TableSetColumnIndex(0);
-                ImGui::Text(ICON_FA_DESKTOP "  Resolution");
-                ImGui::TableSetColumnIndex(1);
-                char resBuffer[32];
-                sprintf_s(resBuffer, "%dx%d", screenWidth, screenHeight);
-                TextRightAligned(resBuffer);
+                // Big Bold Title
+                ImGui::PushFont(fontHeader);
+                ImGui::Text("Game Control Panel");
+                ImGui::PopFont();
 
-                // Row 4 Objects
-                ImGui::TableNextRow();
-                ImGui::TableSetColumnIndex(0);
-                ImGui::Text(ICON_FA_GAMEPAD "  Objects");
-                ImGui::TableSetColumnIndex(1);
-                char objBuff[32];
-                sprintf_s(objBuff, "%d", renderedObjects);
-                TextRightAligned(objBuff);
+                // Version (Right Aligned, Mono Font)
+                ImGui::SameLine();
+                ImGui::PushFont(fontMono);
+                TextRightAligned("v1.0", ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
+                ImGui::PopFont();
 
-                ImGui::EndTable();
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
             }
-            ImGui::PopFont(); // Stop using Mono
-            ImGui::Spacing();
-        }
-        else
-        {
-            ImGui::PopFont();
-        }
 
-        // LOG OUTPUT
-        ImGui::PushFont(fontSmall);
-        if (ImGui::CollapsingHeader("LOG OUTPUT", ImGuiTreeNodeFlags_DefaultOpen))
-        {
-            ImGui::PopFont();
+            // SCENE CONTROLS SECTION
+            ImGui::PushFont(fontSmall); // Small Caps Header
 
-            // Darker background for logs
-            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.07f, 0.07f, 0.07f, 1.0f));
-            if (ImGui::BeginChild("LogOutput", ImVec2(0, 100), true))
+            if (ImGui::CollapsingHeader("SCENE CONTROLS", ImGuiTreeNodeFlags_DefaultOpen)) // DefaultOpen means it starts expanded
             {
-                ImGui::PushFont(fontMono); // Logs look better in Mono
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+                ImGui::PopFont(); // Switch back to Default UI Font (Inter Medium)
+                ImGui::Spacing();
 
-                for (const auto& log : logs) {
-                    ImGui::TextUnformatted(log.c_str());
+                // "Change Background" Button
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 6.0f));
+                if (ImGui::Button(ICON_FA_LAYER_GROUP "  Change Background", ImVec2(-1, 0))) {
+                    changeBackground = !changeBackground;
+                    AddLog("[SYSTEM] Background toggled");
                 }
-
-                // Auto Scroll
-                if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
-                    ImGui::SetScrollHereY(1.0f);
-
+                ImGui::PopStyleVar();
                 ImGui::PopStyleColor();
+
+                ImGui::Spacing();
+
+                // Custom Toggles (Inter Medium)
+                if (DrawToggleSwitch("Day / Night Cycle", &dayNightCycle)) {
+                    AddLog(dayNightCycle ? "[SCENE] Changed to Night Scene" : "[SCENE] Changed to Day Scene");
+                }
+                ImGui::Spacing();
+                DrawToggleSwitch("Enable Animation", &enableAnimation);
+
+                /*
+                if (DrawToggleSwitch("Enable Animation", &enableAnimation)) {
+                     AddLog(enableAnimation ? "[ANIM] Animation started" : "[ANIM] Animation stopped");
+                 }*/
+                ImGui::Spacing();
+            }
+            else
+            {
+                ImGui::PopFont(); // Pop if closed
+            }
+
+            // DEBUG INFORMATION SECTION
+            ImGui::PushFont(fontSmall);
+            if (ImGui::CollapsingHeader("DEBUG INFORMATION", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                ImGui::PopFont();
+                ImGui::Spacing();
+
+                ImGui::PushFont(fontMono);
+
+                if (ImGui::BeginTable("DebugTable", 2))
+                {
+                    ImGui::TableSetupColumn("Label");
+                    ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthFixed, 150.0f);
+
+                    // Row 1 FPS
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::Text(ICON_FA_WAVE_SQUARE "  FPS");
+                    ImGui::TableSetColumnIndex(1);
+                    char fpsBuff[32];
+                    sprintf_s(fpsBuff, "%.0f", fps);
+                    // Highlight FPS in Blue
+                    TextRightAligned(fpsBuff, ImVec4(0.29f, 0.62f, 1.0f, 1.0f));
+
+                    // Row 2 Position
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::Text(ICON_FA_ARROW_POINTER "  Player Pos");
+                    ImGui::TableSetColumnIndex(1);
+                    char posBuffer[64];
+                    sprintf_s(posBuffer, "%.1f, %.1f, %.1f", playerPos.x, playerPos.y, playerPos.z);
+                    TextRightAligned(posBuffer);
+
+                    // Row 3 Resolution
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::Text(ICON_FA_DESKTOP "  Resolution");
+                    ImGui::TableSetColumnIndex(1);
+                    char resBuffer[32];
+                    sprintf_s(resBuffer, "%dx%d", screenWidth, screenHeight);
+                    TextRightAligned(resBuffer);
+
+                    // Row 4 Objects
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::Text(ICON_FA_GAMEPAD "  Objects");
+                    ImGui::TableSetColumnIndex(1);
+                    char objBuff[32];
+                    sprintf_s(objBuff, "%d", renderedObjects);
+                    TextRightAligned(objBuff);
+
+                    ImGui::EndTable();
+                }
+                ImGui::PopFont(); // Stop using Mono
+                ImGui::Spacing();
+            }
+            else
+            {
                 ImGui::PopFont();
             }
-            ImGui::EndChild();
+
+            // LOG OUTPUT
+            ImGui::PushFont(fontSmall);
+            if (ImGui::CollapsingHeader("LOG OUTPUT", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                ImGui::PopFont();
+
+                // Darker background for logs
+                ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.07f, 0.07f, 0.07f, 1.0f));
+                if (ImGui::BeginChild("LogOutput", ImVec2(0, 100), true))
+                {
+                    ImGui::PushFont(fontMono); // Logs look better in Mono
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+
+                    for (const auto& log : logs) {
+                        ImGui::TextUnformatted(log.c_str());
+                    }
+
+                    // Auto Scroll
+                    if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+                        ImGui::SetScrollHereY(1.0f);
+
+                    ImGui::PopStyleColor();
+                    ImGui::PopFont();
+                }
+                ImGui::EndChild();
+                ImGui::PopStyleColor();
+            }
+            else
+            {
+                ImGui::PopFont();
+            }
+
+            // FOOTER
+            ImGui::Spacing();
+            ImGui::Separator();
+
+            // Footer in Mono
+            ImGui::PushFont(fontMono);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
+
+            ImGui::Text("Press 'INSERT' to toggle");
+
+            // Memory
+            PROCESS_MEMORY_COUNTERS pmc;
+            float memUsageMB = 0.0f;
+            if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
+                memUsageMB = pmc.WorkingSetSize / 1024.0f / 1024.0f;
+            }
+            char memBuff[32];
+            sprintf_s(memBuff, "Mem: %.1f MB", memUsageMB);
+            ImGui::SameLine();
+            TextRightAligned(memBuff);
+
             ImGui::PopStyleColor();
-        }
-        else
-        {
             ImGui::PopFont();
         }
 
-        // FOOTER
-        ImGui::Spacing();
-        ImGui::Separator();
+        ImGui::End();
 
-        // Footer in Mono
-        ImGui::PushFont(fontMono);
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
-
-        ImGui::Text("Press 'INSERT' to toggle");
-
-        // Memory
-        PROCESS_MEMORY_COUNTERS pmc;
-        float memUsageMB = 0.0f;
-        if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
-            memUsageMB = pmc.WorkingSetSize / 1024.0f / 1024.0f;
-        }
-        char memBuff[32];
-        sprintf_s(memBuff, "Mem: %.1f MB", memUsageMB);
-        ImGui::SameLine();
-        TextRightAligned(memBuff);
-
-        ImGui::PopStyleColor();
-        ImGui::PopFont();
+        // Cleanup Styles
+        ImGui::PopStyleVar(2);
+        ImGui::PopStyleColor(5);
     }
-
-    ImGui::End();
-
-    // Cleanup Styles
-    ImGui::PopStyleVar(2);
-    ImGui::PopStyleColor(5);
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

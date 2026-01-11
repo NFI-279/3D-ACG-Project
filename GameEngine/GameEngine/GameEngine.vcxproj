@@ -134,6 +134,7 @@
     <ClCompile Include="External\imgui\imgui_widgets.cpp" />
     <ClCompile Include="Graphics\window.cpp" />
     <ClCompile Include="GUI\GUIManager.cpp" />
+    <ClCompile Include="GUI\QuestManager.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Model Loading\meshLoaderObj.cpp" />
     <ClCompile Include="Model Loading\mesh.cpp" />
@@ -158,6 +159,7 @@
     <ClInclude Include="GUI\Fonts\InterMedium.h" />
     <ClInclude Include="GUI\Fonts\JetBrains.h" />
     <ClInclude Include="GUI\GUIManager.h" />
+    <ClInclude Include="GUI\QuestManager.h" />
     <ClInclude Include="Model Loading\meshLoaderObj.h" />
     <ClInclude Include="Model Loading\mesh.h" />
     <ClInclude Include="Model Loading\stringTokenizer.h" />

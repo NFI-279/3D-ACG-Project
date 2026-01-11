@@ -5,6 +5,7 @@
 #include <glew.h>
 #include <glfw3.h>
 #include <glm.hpp>
+#include "QuestManager.h"
 
 class GUIManager
 {
@@ -15,8 +16,9 @@ public:
     ImFont* fontSmall = nullptr; // For Section Headers
     ImFont* fontMono = nullptr; // For FPS, Logs, Coords
 
+    QuestManager questManager;
 
-    bool showGUI = true;
+    bool showGUI = false;
     bool changeBackground = false;
 
     // Scene controls that we referenced in main

@@ -338,6 +338,19 @@ int main()
 
 		gui.Render(playerPos, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects);
 
+		// TODO FILIP: Remove when out of testing !!!!
+		static bool fPressed = false;
+		if (window.isPressed(GLFW_KEY_F)) {
+			if (!fPressed) {
+				gui.questManager.CompleteCurrentQuest();
+				gui.AddLog("[GAME] Quest Objective Completed");
+				fPressed = true;
+			}
+		}
+		else {
+			fPressed = false;
+		}
+
 		if (window.isPressed(GLFW_KEY_INSERT))
 		{
 			if (!openMenu)
