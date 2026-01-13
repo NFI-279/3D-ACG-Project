@@ -35,9 +35,28 @@ glm::vec3 lightPos = glm::vec3(-180.0f, 100.0f, -200.0f);
 // Player
 glm::vec3 playerPos = glm::vec3(1.0f, -19.0f, 1.0f);
 float playerYaw = 0.0f; // rotation Y axis
+// Legs animation
+float walkCycle = 0.0f; // accumulates movement for leg animation
+float walkSpeedFactor = 5.0f; // controls leg swing speed
+float walkAmplitude = 0.2f;   // leg swing amplitude
+
+// Monsters
+struct Monster {
+	glm::vec3 position;
+	float bodyScale;
+	float yaw;
+	float walkCycle = 0.0f; // accumulates movement
+};
+
+std::vector<Monster> monsters;
+float monsterSpeed = 5.0f;
+float chaseDistance = 10.0f; // maximum distance to start chasing
+float spawnInterval = 3.0f;       // seconds between monster spawns
+float timeSinceLastSpawn = 0.0f;  // accumulates time
+float spawnDistance = 10.0f;      // min distance from player
 
 // Camera
-float playerSpeed = 100.0f;
+float playerSpeed = 10.0f;
 float rotationSpeed = 90.0f;
 float camYaw = -90.0f;
 float camPitch = -20.0f;
@@ -69,12 +88,14 @@ int main()
 	//building and compiling shader program
 	Shader shader("Shaders/vertex_shader.glsl", "Shaders/fragment_shader.glsl");
 	Shader sunShader("Shaders/sun_vertex_shader.glsl", "Shaders/sun_fragment_shader.glsl");
+	Shader bodyShader("Shaders/vertex_shader.glsl", "Shaders/body_fragment_shader.glsl");
 
 	//Textures
 	GLuint tex = loadBMP("Resources/Textures/wood.bmp");
 	GLuint tex2 = loadBMP("Resources/Textures/rock.bmp");
 	GLuint tex3 = loadBMP("Resources/Textures/city1.bmp");
 	GLuint tex4 = loadBMP("Resources/Textures/tower1.bmp");
+	GLuint bodyTex = loadBMP("Resources/Textures/dirty.bmp");
 
 	glEnable(GL_DEPTH_TEST);
 
@@ -124,6 +145,11 @@ int main()
 	textures4[0].id = tex4;
 	textures4[0].type = "texture_diffuse";
 
+	std::vector<Texture> bodyTextures;
+	bodyTextures.push_back(Texture());
+	bodyTextures[0].id = bodyTex;
+	bodyTextures[0].type = "texture_diffuse";
+
 
 	Mesh mesh(vert, ind, textures3);
 
@@ -135,6 +161,7 @@ int main()
 	//Mesh player = loader.loadObj("Resources/Models/player.obj", textures2);
 	Mesh towerMesh = loader.loadObj("Resources/Models/plane.obj", textures4);
 	//Mesh treeMesh = loader.loadObj("Resources/Models/tree1.obj");
+	Mesh bodyBox = loader.loadObj("Resources/Models/cube.obj", bodyTextures);
 
 	// Create wall for tower
 	towers.push_back({ glm::vec3(-34.0f, 0.0f, 39.0f), glm::vec3(0.154f, 0.1f, 0.154f), false });
@@ -220,8 +247,34 @@ int main()
 			moveDir = glm::normalize(moveDir);
 			playerPos += moveDir * velocity;
 			playerYaw = glm::degrees(atan2(moveDir.z, moveDir.x));
+			walkCycle += glm::length(moveDir) * velocity * walkSpeedFactor;
 		}
 		//}
+		// 
+		// Random monster spawning parameters
+		//float spawnDistance = 20.0f; // min distance from player
+		//float spawnChance = 0.01f;   // chance per frame to spawn a monster
+
+		// Update the spawn timer
+		timeSinceLastSpawn += deltaTime;
+
+		if (timeSinceLastSpawn >= spawnInterval)
+		{
+			timeSinceLastSpawn = 0.0f;
+
+			Monster m;
+			float offsetX = ((float)rand() / RAND_MAX - 0.5f) * spawnDistance * 2.0f;
+			float offsetZ = ((float)rand() / RAND_MAX - 0.5f) * spawnDistance * 2.0f;
+
+			m.position = glm::vec3(
+				glm::clamp(playerPos.x + offsetX, mapMinX, mapMaxX),
+				playerPos.y,
+				glm::clamp(playerPos.z + offsetZ, mapMinZ, mapMaxZ)
+			);
+			m.bodyScale = 1.0f;
+			monsters.push_back(m);
+		}
+
 
 		// Ground 
 		playerPos.x = glm::clamp(playerPos.x, mapMinX, mapMaxX);
@@ -282,8 +335,8 @@ int main()
 		glUniform3f(glGetUniformLocation(shader.getId(), "lightPos"), lightPos.x, lightPos.y, lightPos.z);
 		glUniform3f(glGetUniformLocation(shader.getId(), "viewPos"), camera.getCameraPosition().x, camera.getCameraPosition().y, camera.getCameraPosition().z);
 
-		box.draw(shader);
-		totalRenderedObjects++;
+		/*box.draw(shader);
+		totalRenderedObjects++;*/
 
 		///// Test plane Obj file //////
 		for (int x = 0; x < 2; x++)
@@ -335,6 +388,250 @@ int main()
 		}
 
 		glUniform1i(glGetUniformLocation(shader.getId(), "isTree"), 0);
+
+		/// SIMPLE HUMAN MODEL ///
+
+		bodyShader.use();
+		//glUniform3f(glGetUniformLocation(bodyShader.getId(), "bodyColor"), 0.396f, 0.502f, 0.341f); // dark green
+		//glUniform3f(glGetUniformLocation(bodyShader.getId(), "bodyColor"), 0.0f, 1.0f, 0.0f); // all green (maybe for monsters?)
+		glUniform3f(glGetUniformLocation(bodyShader.getId(), "bodyColor"), 0.6f, 0.486f, 0.431f); // texture is kind of red-ish
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, bodyTex);
+		glUniform1i(glGetUniformLocation(bodyShader.getId(), "bodyTexture"), 0);
+
+		// Head (static)
+		{	
+			// glUniform3f(glGetUniformLocation(bodyShader.getId(), "bodyColor"), 1.0f, 0.922f, 0.812f); // skin color
+
+			glm::mat4 headModel = glm::mat4(1.0f);
+			headModel = glm::translate(headModel, playerPos);
+			headModel = glm::rotate(headModel, glm::radians(playerYaw), glm::vec3(0, 1, 0));
+			headModel = glm::translate(headModel, glm::vec3(0.0f, 1.35f, -0.10f)); // position above torso
+			headModel = glm::scale(headModel, glm::vec3(0.10f, 0.10f, 0.10f));
+
+			glm::mat4 headMVP = ProjectionMatrix * ViewMatrix * headModel;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &headMVP[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &headModel[0][0]);
+
+			bodyBox.draw(bodyShader);
+			totalRenderedObjects++;
+		}
+		
+		// Torso (static)
+		{
+			glm::mat4 torsoModel = glm::mat4(1.0f);
+			torsoModel = glm::translate(torsoModel, playerPos);
+			torsoModel = glm::rotate(torsoModel, glm::radians(playerYaw), glm::vec3(0, 1, 0));
+			torsoModel = glm::translate(torsoModel, glm::vec3(0.0f, 0.2f, -0.15f)); // position above legs
+			torsoModel = glm::scale(torsoModel, glm::vec3(0.15f, 0.25f, 0.12f)); // width, height, depth
+
+			glm::mat4 torsoMVP = ProjectionMatrix * ViewMatrix * torsoModel;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &torsoMVP[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &torsoModel[0][0]);
+
+			bodyBox.draw(bodyShader);
+			totalRenderedObjects++;
+		}
+
+		// Arms with swinging animation
+
+		// Left arm
+		{
+			glm::mat4 armModel = glm::mat4(1.0f);
+			armModel = glm::translate(armModel, playerPos);
+			armModel = glm::rotate(armModel, glm::radians(playerYaw), glm::vec3(0, 1, 0));
+			armModel = glm::translate(armModel, glm::vec3(-0.5f, 0.2f, 0.0f)); // offset from torso
+
+			//armModel = glm::rotate(armModel, glm::radians(180.0f), glm::vec3(1, 0, 0)); // flip the arm
+
+			// Pivot at shoulder for rotation
+			armModel = glm::translate(armModel, glm::vec3(0.0f, 0.0f, 0.0f));
+			armModel = glm::rotate(armModel, -sin(walkCycle) * glm::radians(400.0f), glm::vec3(1, 0, 0));
+			armModel = glm::translate(armModel, glm::vec3(0.0f, 0.0f, 0.0f));
+
+			armModel = glm::scale(armModel, glm::vec3(0.04f, 0.25f, 0.04f)); // width, height, depth
+
+			glm::mat4 armMVP = ProjectionMatrix * ViewMatrix * armModel;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &armMVP[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &armModel[0][0]);
+
+			bodyBox.draw(bodyShader);
+			totalRenderedObjects++;
+		}
+
+		// Right arm
+		{
+			glm::mat4 armModel = glm::mat4(1.0f);
+			armModel = glm::translate(armModel, playerPos);
+			armModel = glm::rotate(armModel, glm::radians(playerYaw), glm::vec3(0, 1, 0));
+			armModel = glm::translate(armModel, glm::vec3(0.5f, 0.2f, 0.0f)); // offset from torso
+
+			// Pivot at shoulder for rotation
+			armModel = glm::translate(armModel, glm::vec3(0.0f, -0.25f, 0.0f));
+			armModel = glm::rotate(armModel, sin(walkCycle) * glm::radians(400.0f), glm::vec3(1, 0, 0));
+			armModel = glm::translate(armModel, glm::vec3(0.0f, 0.25f, 0.0f));
+
+			armModel = glm::scale(armModel, glm::vec3(0.04f, 0.25f, 0.04f)); // width, height, depth
+
+			glm::mat4 armMVP = ProjectionMatrix * ViewMatrix * armModel;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &armMVP[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &armModel[0][0]);
+
+			bodyBox.draw(bodyShader);
+			totalRenderedObjects++;
+		}
+
+
+		// Legs with swinging animation
+
+		// Left leg
+		{
+			glm::mat4 legModel = glm::mat4(1.0f);
+			legModel = glm::translate(legModel, playerPos);
+			legModel = glm::rotate(legModel, glm::radians(playerYaw), glm::vec3(0, 1, 0));
+			legModel = glm::translate(legModel, glm::vec3(0.2f, -0.5f, 0.0f)); // hip offset
+
+			legModel = glm::translate(legModel, glm::vec3(0.0f, 0.1f, 0.0f)); // pivot to top of leg
+			legModel = glm::rotate(legModel, sin(walkCycle) * glm::radians(360.0f), glm::vec3(1, 0, 0));
+			legModel = glm::translate(legModel, glm::vec3(0.0f, -0.1f, 0.0f)); // move pivot back
+
+			legModel = glm::scale(legModel, glm::vec3(0.05f, 0.2f, 0.05f));
+
+			glm::mat4 legMVP = ProjectionMatrix * ViewMatrix * legModel;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &legMVP[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &legModel[0][0]);
+
+			bodyBox.draw(bodyShader);
+			totalRenderedObjects++;
+		}
+
+		// Right leg
+		{
+			glm::mat4 legModel = glm::mat4(1.0f);
+			legModel = glm::translate(legModel, playerPos);
+			legModel = glm::rotate(legModel, glm::radians(playerYaw), glm::vec3(0, 1, 0));
+			legModel = glm::translate(legModel, glm::vec3(-0.2f, -0.5f, 0.0f)); // hip offset opposite
+
+			legModel = glm::translate(legModel, glm::vec3(0.0f, 0.1f, 0.0f));
+			legModel = glm::rotate(legModel, -sin(walkCycle) * glm::radians(360.0f), glm::vec3(1, 0, 0));
+			legModel = glm::translate(legModel, glm::vec3(0.0f, -0.1f, 0.0f));
+
+			legModel = glm::scale(legModel, glm::vec3(0.05f, 0.2f, 0.05f));
+
+			glm::mat4 legMVP = ProjectionMatrix * ViewMatrix * legModel;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &legMVP[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &legModel[0][0]);
+
+			bodyBox.draw(bodyShader);
+			totalRenderedObjects++;
+		}
+
+		glUniform3f(glGetUniformLocation(bodyShader.getId(), "bodyColor"), 0.0f, 1.0f, 0.0f);
+
+		for (Monster& m : monsters) {
+			glm::vec3 dir = playerPos - m.position;
+			float distance = glm::length(dir);
+
+			if (distance < chaseDistance && distance > 0.01f) {
+				dir = glm::normalize(dir);
+				m.position += dir * monsterSpeed * deltaTime;
+				m.yaw = glm::degrees(atan2(dir.z, dir.x)) + 90.0f;
+				m.walkCycle += glm::length(dir * monsterSpeed * deltaTime) * walkSpeedFactor;
+			}
+
+			// Base model transform (position + yaw)
+			glm::mat4 humanModel = glm::mat4(1.0f);
+			humanModel = glm::translate(humanModel, m.position);
+			humanModel = glm::rotate(humanModel, glm::radians(m.yaw), glm::vec3(0, 1, 0));
+
+			float monsterWalkCycle = m.walkCycle;
+
+			// Head
+			{
+				glm::mat4 headModel = humanModel;
+				headModel = glm::translate(headModel, glm::vec3(0.0f, 1.35f, -0.10f));
+				headModel = glm::scale(headModel, glm::vec3(0.10f));
+
+				glm::mat4 headMVP = ProjectionMatrix * ViewMatrix * headModel;
+				glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &headMVP[0][0]);
+				glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &headModel[0][0]);
+
+				bodyBox.draw(bodyShader);
+				totalRenderedObjects++;
+			}
+
+			// Torso
+			{
+				glm::mat4 torsoModel = humanModel;
+				torsoModel = glm::translate(torsoModel, glm::vec3(0.0f, 0.2f, -0.15f));
+				torsoModel = glm::scale(torsoModel, glm::vec3(0.15f, 0.25f, 0.12f));
+
+				glm::mat4 torsoMVP = ProjectionMatrix * ViewMatrix * torsoModel;
+				glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &torsoMVP[0][0]);
+				glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &torsoModel[0][0]);
+
+				bodyBox.draw(bodyShader);
+				totalRenderedObjects++;
+			}
+
+			// Arms
+			{
+				// Left arm
+				glm::mat4 leftArm = humanModel;
+				leftArm = glm::translate(leftArm, glm::vec3(-0.5f, 0.2f, 0.0f));
+				leftArm = glm::rotate(leftArm, -sin(monsterWalkCycle) * glm::radians(400.0f), glm::vec3(1, 0, 0));
+				leftArm = glm::scale(leftArm, glm::vec3(0.04f, 0.25f, 0.04f));
+
+				glm::mat4 leftArmMVP = ProjectionMatrix * ViewMatrix * leftArm;
+				glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &leftArmMVP[0][0]);
+				glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &leftArm[0][0]);
+				box.draw(bodyShader);
+				totalRenderedObjects++;
+
+				// Right arm
+				glm::mat4 rightArm = humanModel;
+				rightArm = glm::translate(rightArm, glm::vec3(0.5f, 0.2f, 0.0f));
+				rightArm = glm::rotate(rightArm, sin(monsterWalkCycle) * glm::radians(400.0f), glm::vec3(1, 0, 0));
+				rightArm = glm::scale(rightArm, glm::vec3(0.04f, 0.25f, 0.04f));
+
+				glm::mat4 rightArmMVP = ProjectionMatrix * ViewMatrix * rightArm;
+				glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &rightArmMVP[0][0]);
+				glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &rightArm[0][0]);
+				bodyBox.draw(bodyShader);
+				totalRenderedObjects++;
+			}
+
+			// Legs
+			{
+				// Left leg
+				glm::mat4 leftLeg = humanModel;
+				leftLeg = glm::translate(leftLeg, glm::vec3(0.2f, -0.5f, 0.0f));
+				leftLeg = glm::translate(leftLeg, glm::vec3(0.0f, 0.1f, 0.0f));
+				leftLeg = glm::rotate(leftLeg, sin(monsterWalkCycle) * glm::radians(360.0f), glm::vec3(1, 0, 0));
+				leftLeg = glm::translate(leftLeg, glm::vec3(0.0f, -0.1f, 0.0f));
+				leftLeg = glm::scale(leftLeg, glm::vec3(0.05f, 0.2f, 0.05f));
+
+				glm::mat4 leftLegMVP = ProjectionMatrix * ViewMatrix * leftLeg;
+				glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &leftLegMVP[0][0]);
+				glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &leftLeg[0][0]);
+				bodyBox.draw(bodyShader);
+				totalRenderedObjects++;
+
+				// Right leg
+				glm::mat4 rightLeg = humanModel;
+				rightLeg = glm::translate(rightLeg, glm::vec3(-0.2f, -0.5f, 0.0f));
+				rightLeg = glm::translate(rightLeg, glm::vec3(0.0f, 0.1f, 0.0f));
+				rightLeg = glm::rotate(rightLeg, -sin(monsterWalkCycle) * glm::radians(360.0f), glm::vec3(1, 0, 0));
+				rightLeg = glm::translate(rightLeg, glm::vec3(0.0f, -0.1f, 0.0f));
+				rightLeg = glm::scale(rightLeg, glm::vec3(0.05f, 0.2f, 0.05f));
+
+				glm::mat4 rightLegMVP = ProjectionMatrix * ViewMatrix * rightLeg;
+				glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &rightLegMVP[0][0]);
+				glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &rightLeg[0][0]);
+				bodyBox.draw(bodyShader);
+				totalRenderedObjects++;
+			}
+		}
 
 		gui.Render(playerPos, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects);
 
