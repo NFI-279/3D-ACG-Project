@@ -1,4 +1,6 @@
 #include "QuestManager.h"
+#include "imgui.h"             // Added to fix ImFont incomplete type errors
+#include "imgui_internal.h"    // Added for internal math if needed
 #include <iostream>
 #include <cmath> 
 #include <algorithm> 
@@ -27,20 +29,27 @@ void QuestManager::AddQuest(std::string title, std::string desc) {
 }
 
 void QuestManager::CompleteCurrentQuest() {
+    // Safety check: Prevent spamming past the end
     if (currentQuestIndex >= 0 && currentQuestIndex < quests.size()) {
         quests[currentQuestIndex].isCompleted = true;
         quests[currentQuestIndex].isActive = false;
         currentQuestIndex++;
 
+        // Only announce if there is actually a next quest
         if (currentQuestIndex < quests.size()) {
             quests[currentQuestIndex].isActive = true;
             isAnnouncementActive = true;
             announcementTimer = 0.0f;
         }
+        else {
+            // All done - ensure announcement is off so we don't crash trying to render a non-existent title
+            isAnnouncementActive = false;
+        }
     }
 }
 
-void QuestManager::Render(ImFont* fontUI, ImFont* fontHeader, ImFont* fontMono) {
+// Added 'float scale' to arguments
+void QuestManager::Render(ImFont* fontUI, ImFont* fontHeader, ImFont* fontMono, float scale) {
     if (quests.empty()) return;
 
     float dt = ImGui::GetIO().DeltaTime;
@@ -57,6 +66,12 @@ void QuestManager::Render(ImFont* fontUI, ImFont* fontHeader, ImFont* fontMono) 
     // PART A: CINEMATIC CENTER BANNER
     // -----------------------------------------------------------
     if (isAnnouncementActive) {
+
+        // CRASH FIX - If game finished stop rendering the banner immediately
+        if (currentQuestIndex >= quests.size()) {
+            isAnnouncementActive = false;
+            return;
+        }
         float expandProgress = std::min(announcementTimer / 0.8f, 1.0f);
         float widthExpand = 1.0f - pow(1.0f - expandProgress, 3.0f);
 
@@ -79,9 +94,10 @@ void QuestManager::Render(ImFont* fontUI, ImFont* fontHeader, ImFont* fontMono) 
         ImU32 colBgCenter = IM_COL32(0, 0, 0, 180 * alpha);
         ImU32 colBgEdge = IM_COL32(0, 0, 0, 0);
 
-        float maxLineWidth = 500.0f;
+        // Apply Scale
+        float maxLineWidth = 500.0f * scale;
         float currentLineWidth = maxLineWidth * widthExpand;
-        float bgHeight = 100.0f;
+        float bgHeight = 100.0f * scale;
 
         drawList->AddRectFilledMultiColor(
             ImVec2(center.x - currentLineWidth * 1.2f, center.y - bgHeight / 2),
@@ -95,7 +111,7 @@ void QuestManager::Render(ImFont* fontUI, ImFont* fontHeader, ImFont* fontMono) 
         );
 
         float lineY = center.y;
-        float lineThick = 2.0f;
+        float lineThick = 2.0f * scale;
 
         drawList->AddRectFilledMultiColor(
             ImVec2(center.x - currentLineWidth, lineY),
@@ -108,17 +124,23 @@ void QuestManager::Render(ImFont* fontUI, ImFont* fontHeader, ImFont* fontMono) 
             colLineCenter, colLineEdge, colLineEdge, colLineCenter
         );
 
-        ImGui::PushFont(fontMono);
-        std::string label = "NEW OBJECTIVE";
-        ImVec2 labelSize = ImGui::CalcTextSize(label.c_str());
-        drawList->AddText(ImVec2(center.x - labelSize.x / 2, lineY - labelSize.y - 15.0f), colTextLabel, label.c_str());
-        ImGui::PopFont();
+        // -- Text Drawing with Manual Scaling (Fixes ImFont::FontSize error) --
 
-        ImGui::PushFont(fontHeader);
-        std::string title = quests[currentQuestIndex].title;
-        ImVec2 titleSize = ImGui::CalcTextSize(title.c_str());
-        drawList->AddText(ImVec2(center.x - titleSize.x / 2, lineY + 15.0f), colTextHeader, title.c_str());
-        ImGui::PopFont();
+        const char* label = "NEW OBJECTIVE";
+        float labelSizePx = 15.0f * scale; // Hardcoded base size from Init
+        ImVec2 labelSize = fontMono->CalcTextSizeA(labelSizePx, FLT_MAX, 0.0f, label);
+
+        drawList->AddText(fontMono, labelSizePx,
+            ImVec2(center.x - labelSize.x / 2, lineY - labelSize.y - (15.0f * scale)),
+            colTextLabel, label);
+
+        const char* title = quests[currentQuestIndex].title.c_str();
+        float titleSizePx = 17.0f * scale; // Hardcoded base size from Init
+        ImVec2 titleSize = fontHeader->CalcTextSizeA(titleSizePx, FLT_MAX, 0.0f, title);
+
+        drawList->AddText(fontHeader, titleSizePx,
+            ImVec2(center.x - titleSize.x / 2, lineY + (15.0f * scale)),
+            colTextHeader, title);
 
         if (announcementTimer < 4.0f) return;
     }
@@ -142,11 +164,13 @@ void QuestManager::Render(ImFont* fontUI, ImFont* fontHeader, ImFont* fontMono) 
     ImU32 textCol = IM_COL32(255, 255, 255, 230 * hudAlpha);
     ImU32 accentCol = IM_COL32(200, 180, 100, 255 * hudAlpha);
 
-    float width = 224.0f;
-    float baseHeight = 60.0f;
-    float rounding = 4.0f;
+    // Apply Scale to Dimensions
+    float width = 224.0f * scale;
+    float baseHeight = 60.0f * scale;
+    float rounding = 4.0f * scale;
 
-    ImGui::SetNextWindowPos(ImVec2(20, 40));
+    // Scale Position
+    ImGui::SetNextWindowPos(ImVec2(20 * scale, 40 * scale));
     ImGui::SetNextWindowBgAlpha(0.0f);
 
     // Remove Borders and Padding so window size == drawing size
@@ -155,112 +179,117 @@ void QuestManager::Render(ImFont* fontUI, ImFont* fontHeader, ImFont* fontMono) 
 
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize;
 
-    ImGui::Begin("QuestTracker", nullptr, flags);
+    if (ImGui::Begin("QuestTracker", nullptr, flags))
+    {
+        // Apply Global Window Font Scale
+        ImGui::SetWindowFontScale(scale);
 
-    // Animation Logic
-    bool isHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
-    if (isHovered) hoverAnimation += dt * 5.0f;
-    else hoverAnimation -= dt * 5.0f;
+        // Animation Logic
+        bool isHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
+        if (isHovered) hoverAnimation += dt * 5.0f;
+        else hoverAnimation -= dt * 5.0f;
 
-    if (hoverAnimation < 0.0f) hoverAnimation = 0.0f;
-    if (hoverAnimation > 1.0f) hoverAnimation = 1.0f;
+        if (hoverAnimation < 0.0f) hoverAnimation = 0.0f;
+        if (hoverAnimation > 1.0f) hoverAnimation = 1.0f;
 
-    float historyHeight = 0.0f;
-    int completedCount = 0;
-    for (const auto& q : quests) if (q.isCompleted) completedCount++;
-    if (completedCount > 0) historyHeight = completedCount * 28.0f + 25.0f;
+        float historyHeight = 0.0f;
+        int completedCount = 0;
+        for (const auto& q : quests) if (q.isCompleted) completedCount++;
 
-    float totalHeight = baseHeight + (historyHeight * hoverAnimation);
+        // Scale History Height
+        if (completedCount > 0) historyHeight = completedCount * (28.0f * scale) + (25.0f * scale);
 
-    // Set Dummy to TOTAL HEIGHT to expand the window so the bottom border isnt clipped
-    ImGui::Dummy(ImVec2(width, totalHeight));
+        float totalHeight = baseHeight + (historyHeight * hoverAnimation);
 
-    ImDrawList* draw = ImGui::GetWindowDrawList();
-    ImVec2 p = ImGui::GetWindowPos();
+        // Set Dummy to TOTAL HEIGHT to expand the window so the bottom border isnt clipped
+        ImGui::Dummy(ImVec2(width, totalHeight));
 
-    // Draw Unified Background
-    draw->AddRectFilled(p, ImVec2(p.x + width, p.y + totalHeight), bgCol, rounding);
-    draw->AddRect(p, ImVec2(p.x + width, p.y + totalHeight), borderCol, rounding);
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        ImVec2 p = ImGui::GetWindowPos();
 
-    // Draw Icon
-    float cx = p.x + 30.0f;
-    float cy = p.y + baseHeight / 2.0f ;
-    float r = 7.0f;
+        // Draw Unified Background
+        draw->AddRectFilled(p, ImVec2(p.x + width, p.y + totalHeight), bgCol, rounding);
+        draw->AddRect(p, ImVec2(p.x + width, p.y + totalHeight), borderCol, rounding);
 
-    ImVec2 p1(cx, cy - r); ImVec2 p2(cx + r, cy);
-    ImVec2 p3(cx, cy + r); ImVec2 p4(cx - r, cy);
-    draw->AddQuadFilled(p1, p2, p3, p4, accentCol);
+        // Draw Icon (Scaled)
+        float cx = p.x + (30.0f * scale);
+        float cy = p.y + baseHeight / 2.0f;
+        float r = 7.0f * scale;
 
-    // Draw Text
+        ImVec2 p1(cx, cy - r); ImVec2 p2(cx + r, cy);
+        ImVec2 p3(cx, cy + r); ImVec2 p4(cx - r, cy);
+        draw->AddQuadFilled(p1, p2, p3, p4, accentCol);
 
-    // Setup Strings
-    std::string labelStr = "CURRENT OBJECTIVE";
-    std::string titleStr = (currentQuestIndex < quests.size()) ? quests[currentQuestIndex].title : "All Objectives Complete";
+        // Draw Text
 
-    // Calculate Heights
-    ImGui::PushFont(fontMono);
-    float labelHeight = ImGui::CalcTextSize(labelStr.c_str()).y;
-    ImGui::PopFont();
+        // Setup Strings
+        const char* labelStr = "CURRENT OBJECTIVE";
+        const char* titleStr = (currentQuestIndex < quests.size()) ? quests[currentQuestIndex].title.c_str() : "All Objectives Complete";
 
-    ImGui::PushFont(fontUI);
-    float titleHeight = ImGui::CalcTextSize(titleStr.c_str()).y;
-    ImGui::PopFont();
-
-    // Vertical Math
-    float textGap = 4.0f;
-    float totalTextHeight = labelHeight + textGap + titleHeight;
-    float blockStartY = p.y + (baseHeight - totalTextHeight) / 2.0f;
-
-    // Horizontal Math
-    float textStartX = p.x + 30.0f + 5.0f + 17.0f;
-
-    // Render Text
-    ImGui::SetCursorScreenPos(ImVec2(textStartX, blockStartY));
-    ImGui::PushFont(fontMono);
-    ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(150, 150, 150, 200 * hudAlpha));
-    ImGui::Text("%s", labelStr.c_str());
-    ImGui::PopStyleColor();
-    ImGui::PopFont();
-
-    ImGui::SetCursorScreenPos(ImVec2(textStartX, blockStartY + labelHeight + textGap));
-    ImGui::PushFont(fontUI);
-    ImGui::PushStyleColor(ImGuiCol_Text, textCol);
-    ImGui::Text("%s", titleStr.c_str());
-    ImGui::PopStyleColor();
-    ImGui::PopFont();
-
-    // Draw History
-    if (hoverAnimation > 0.01f && completedCount > 0) {
-        draw->PushClipRect(ImVec2(p.x, p.y + baseHeight), ImVec2(p.x + width, p.y + totalHeight), true);
-
-        ImGui::SetCursorPos(ImVec2(20, baseHeight + 10));
-        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, hoverAnimation * hudAlpha);
-
+        // Calculate Heights
         ImGui::PushFont(fontMono);
-        ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "COMPLETED");
+        float labelHeight = ImGui::CalcTextSize(labelStr).y;
         ImGui::PopFont();
 
         ImGui::PushFont(fontUI);
-        for (const auto& q : quests) {
-            if (q.isCompleted) {
-                ImGui::SetCursorPosX(30.0f - 12.0f);
-                ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1.0f), ICON_FA_CHECK);
-                ImGui::SameLine();
-
-                ImVec2 txtPos = ImGui::GetCursorScreenPos();
-                ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), q.title.c_str());
-
-                ImVec2 txtSize = ImGui::CalcTextSize(q.title.c_str());
-                draw->AddLine(ImVec2(txtPos.x, txtPos.y + txtSize.y / 2), ImVec2(txtPos.x + txtSize.x, txtPos.y + txtSize.y / 2), IM_COL32(100, 100, 100, 100));
-            }
-        }
+        float titleHeight = ImGui::CalcTextSize(titleStr).y;
         ImGui::PopFont();
-        ImGui::PopStyleVar();
 
-        draw->PopClipRect();
+        // Vertical Math
+        float textGap = 4.0f * scale;
+        float totalTextHeight = labelHeight + textGap + titleHeight;
+        float blockStartY = p.y + (baseHeight - totalTextHeight) / 2.0f;
+
+        // Horizontal Math
+        float textStartX = p.x + (30.0f + 5.0f + 17.0f) * scale;
+
+        // Render Text
+        ImGui::SetCursorScreenPos(ImVec2(textStartX, blockStartY));
+        ImGui::PushFont(fontMono);
+        ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(150, 150, 150, 200 * hudAlpha));
+        ImGui::Text("%s", labelStr);
+        ImGui::PopStyleColor();
+        ImGui::PopFont();
+
+        ImGui::SetCursorScreenPos(ImVec2(textStartX, blockStartY + labelHeight + textGap));
+        ImGui::PushFont(fontUI);
+        ImGui::PushStyleColor(ImGuiCol_Text, textCol);
+        ImGui::Text("%s", titleStr);
+        ImGui::PopStyleColor();
+        ImGui::PopFont();
+
+        // Draw History
+        if (hoverAnimation > 0.01f && completedCount > 0) {
+            draw->PushClipRect(ImVec2(p.x, p.y + baseHeight), ImVec2(p.x + width, p.y + totalHeight), true);
+
+            ImGui::SetCursorPos(ImVec2(20 * scale, baseHeight + (10 * scale)));
+            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, hoverAnimation * hudAlpha);
+
+            ImGui::PushFont(fontMono);
+            ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "COMPLETED");
+            ImGui::PopFont();
+
+            ImGui::PushFont(fontUI);
+            for (const auto& q : quests) {
+                if (q.isCompleted) {
+                    ImGui::SetCursorPosX((30.0f - 12.0f) * scale);
+                    ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1.0f), ICON_FA_CHECK);
+                    ImGui::SameLine();
+
+                    ImVec2 txtPos = ImGui::GetCursorScreenPos();
+                    ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), q.title.c_str());
+
+                    ImVec2 txtSize = ImGui::CalcTextSize(q.title.c_str());
+                    draw->AddLine(ImVec2(txtPos.x, txtPos.y + txtSize.y / 2), ImVec2(txtPos.x + txtSize.x, txtPos.y + txtSize.y / 2), IM_COL32(100, 100, 100, 100));
+                }
+            }
+            ImGui::PopFont();
+            ImGui::PopStyleVar();
+
+            draw->PopClipRect();
+        }
+
+        ImGui::End();
     }
-
-    ImGui::End();
-
     ImGui::PopStyleVar(2);
 }

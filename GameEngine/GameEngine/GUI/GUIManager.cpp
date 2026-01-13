@@ -9,6 +9,7 @@
 #include "Fonts/InterBold.h"
 #include "Fonts/InterMedium.h"
 #include "Fonts/JetBrains.h"
+#include <cstdlib> // For rand()
 
 // Windows specific headers for Memory Usage
 #include <windows.h>
@@ -59,6 +60,11 @@ void GUIManager::Init(GLFWwindow* window)
         (void*)InterBold, sizeof(InterBold), 17.0f, &textConfig
     );
 
+    // Merge Icons into Header Font so we can use them with large text
+    io.Fonts->AddFontFromMemoryTTF(
+        (void*)FaSolid, sizeof(FaSolid), 13.0f, &iconsConfig, icons_ranges
+    );
+
     // Load Small Font (Inter Medium 14px)
     fontSmall = io.Fonts->AddFontFromMemoryTTF(
         (void*)InterMedium, sizeof(InterMedium), 14.0f, &textConfig
@@ -73,6 +79,7 @@ void GUIManager::Init(GLFWwindow* window)
     io.Fonts->AddFontFromMemoryTTF(
         (void*)FaSolid, sizeof(FaSolid), 13.0f, &iconsConfig, icons_ranges
     );
+
 
     io.Fonts->Build();
     io.FontDefault = fontUI;
@@ -161,6 +168,371 @@ void TextRightAligned(const char* text, ImVec4 color = ImVec4(1, 1, 1, 1)) {
     ImGui::PopStyleColor();
 }
 
+
+// 1. ADD THIS HELPER: Draws text with a drop shadow
+void CenterTextWithShadow(const char* text, ImFont* font, float scale, ImVec4 color, ImVec4 shadowCol = ImVec4(0, 0, 0, 0.8f)) {
+    float winWidth = ImGui::GetColumnWidth();
+
+    ImGui::PushFont(font);
+    ImGui::SetWindowFontScale(scale);
+
+    ImVec2 textSize = ImGui::CalcTextSize(text);
+    float cursorX = ImGui::GetCursorPosX() + (winWidth - textSize.x) / 2.0f;
+    float cursorY = ImGui::GetCursorPosY();
+
+    // Draw Shadow
+    ImGui::SetCursorPos(ImVec2(cursorX + 2.0f, cursorY + 2.0f)); // 2px Offset
+    ImGui::PushStyleColor(ImGuiCol_Text, shadowCol);
+    ImGui::Text("%s", text);
+    ImGui::PopStyleColor();
+
+    // Draw Main Text
+    ImGui::SetCursorPos(ImVec2(cursorX, cursorY));
+    ImGui::PushStyleColor(ImGuiCol_Text, color);
+    ImGui::Text("%s", text);
+    ImGui::PopStyleColor();
+
+    ImGui::SetWindowFontScale(1.0f);
+    ImGui::PopFont();
+}
+
+// 2. ADD THIS HELPER: Draws the Icon with a shadow
+void CenterIconWithShadow(const char* icon, float scale, ImVec4 color) {
+    float winWidth = ImGui::GetColumnWidth();
+
+    // Calculate size with scale
+    ImGui::SetWindowFontScale(scale);
+    ImVec2 iconSize = ImGui::CalcTextSize(icon);
+    ImGui::SetWindowFontScale(1.0f); // Reset immediately so we don't mess up other things
+
+    float cursorX = ImGui::GetCursorScreenPos().x + (winWidth - iconSize.x) / 2.0f;
+    float cursorY = ImGui::GetCursorScreenPos().y;
+
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+
+    // Draw Shadow (Offset +2px)
+    draw->AddText(ImGui::GetFont(), ImGui::GetFontSize() * scale, ImVec2(cursorX + 2.0f, cursorY + 2.0f), IM_COL32(0, 0, 0, 180), icon);
+    // Draw Icon
+    draw->AddText(ImGui::GetFont(), ImGui::GetFontSize() * scale, ImVec2(cursorX, cursorY), ImGui::ColorConvertFloat4ToU32(color), icon);
+
+    // Dummy to advance layout cursor
+    ImGui::Dummy(ImVec2(iconSize.x, iconSize.y));
+}
+
+void GUIManager::RenderStatsHUD(float scale)
+{
+    ImGuiIO& io = ImGui::GetIO();
+    float dt = io.DeltaTime;
+
+    // =========================================================
+    // 1. DEBUG SIMULATION
+    // =========================================================
+
+    // K = Damage, L = Heal, M = Score
+    if (ImGui::IsKeyPressed(ImGuiKey_K)) playerHealth -= 15;
+    if (ImGui::IsKeyPressed(ImGuiKey_L)) playerHealth += 15;
+    if (ImGui::IsKeyPressed(ImGuiKey_M)) playerScore += 500;
+
+    // --- NEW MECHANIC SIMULATION ---
+
+    // 'J' = Collect Trash (Fill Backpack)
+    if (ImGui::IsKeyPressed(ImGuiKey_J))
+    {
+        backpackCount++;
+        backpackPulseTimer = 1.0f; // Pulse Gold
+
+        // CRAFTING EVENT (Loop Complete)
+        if (backpackCount >= maxBackpack)
+        {
+            backpackCount = 0;      // Reset Backpack
+            antidoteCount++;        // Gain Ammo
+
+            // Trigger "POP" Animation
+            antidoteScaleTimer = 1.0f;
+            antidoteScaleDir = 1.0f; // Grow
+        }
+    }
+
+    // 'O' = Shoot Antidote
+    if (ImGui::IsKeyPressed(ImGuiKey_O))
+    {
+        if (antidoteCount > 0) {
+            antidoteCount--;
+
+            // Trigger "RECOIL" Animation
+            antidoteScaleTimer = 0.5f; // Faster than grow
+            antidoteScaleDir = -1.0f;  // Shrink
+        }
+    }
+
+    // Safety Clamps
+    if (playerHealth < 0) playerHealth = 0;
+    if (playerHealth > 100) playerHealth = 100;
+
+    // =========================================================
+    // 2. ANIMATION UPDATES
+    // =========================================================
+
+    // Health Logic (Same as before)
+    if (lastHealth == -1) { lastHealth = playerHealth; displayedHealth = (float)playerHealth; }
+    if (playerHealth != lastHealth) {
+        healthFlashTimer = 1.0f;
+        if (playerHealth < lastHealth) { healthChangeDir = -1; healthShakeTimer = 0.5f; }
+        else { healthChangeDir = 1; healthShakeTimer = 0.0f; }
+        lastHealth = playerHealth;
+    }
+    if (healthFlashTimer > 0.0f) healthFlashTimer -= dt * 3.0f; else healthFlashTimer = 0.0f;
+    if (healthShakeTimer > 0.0f) healthShakeTimer -= dt; else healthShakeTimer = 0.0f;
+
+    // Health Number Trap Door
+    if (playerHealth < displayedHealth) displayedHealth = (float)playerHealth;
+    else if (playerHealth > displayedHealth) {
+        if (std::abs(displayedHealth - (float)playerHealth) < 0.5f) displayedHealth = (float)playerHealth;
+        else displayedHealth += ((float)playerHealth - displayedHealth) * 20.0f * dt * 0.1f;
+    }
+
+    // Score Logic
+    if (std::abs(displayedScore - (float)playerScore) > 1.0f)
+        displayedScore += ((float)playerScore - displayedScore) * 5.0f * dt;
+    else displayedScore = (float)playerScore;
+
+    // NEW: Antidote/Backpack Timers
+    if (antidoteScaleTimer > 0.0f) antidoteScaleTimer -= dt * 4.0f; // Fast Pop/Recoil recovery
+    else antidoteScaleTimer = 0.0f;
+
+    if (backpackPulseTimer > 0.0f) backpackPulseTimer -= dt * 3.0f;
+    else backpackPulseTimer = 0.0f;
+
+
+    // =========================================================
+    // 3. RENDERING
+    // =========================================================
+
+    ImU32 bgCol = IM_COL32(15, 15, 20, 220);
+    ImU32 borderCol = IM_COL32(255, 255, 255, 30);
+    ImVec4 colGold = ImVec4(0.78f, 0.70f, 0.39f, 1.0f);
+    ImVec4 colRed = ImVec4(0.9f, 0.2f, 0.2f, 1.0f);
+    ImVec4 colGreen = ImVec4(0.2f, 0.9f, 0.2f, 1.0f);
+    ImVec4 colWhite = ImVec4(1.0f, 1.0f, 1.0f, 0.9f);
+    ImVec4 colGrey = ImVec4(0.6f, 0.6f, 0.6f, 1.0f);
+    ImVec4 colDim = ImVec4(0.4f, 0.4f, 0.4f, 1.0f); // For empty ammo
+    ImU32 sepCol = IM_COL32(255, 255, 255, 15);
+
+    float width = 480.0f * scale;
+    float height = 65.0f * scale;
+    float rounding = 4.0f * scale;
+    float bottomMargin = 15.0f * scale;
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+
+    // Shake Logic
+    float shakeX = 0.0f; float shakeY = 0.0f;
+    if (healthShakeTimer > 0.0f) {
+        float intensity = (5.0f * scale) * (healthShakeTimer / 0.5f);
+        shakeX = (float)((rand() % 100) - 50) / 50.0f * intensity;
+        shakeY = (float)((rand() % 100) - 50) / 50.0f * intensity;
+    }
+
+    ImGui::SetNextWindowPos(ImVec2((viewport->Size.x - width) / 2.0f + shakeX, viewport->Size.y - height - bottomMargin + shakeY));
+    ImGui::SetNextWindowSize(ImVec2(width, height));
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
+
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs;
+
+    if (ImGui::Begin("StatsHUD", nullptr, flags))
+    {
+
+        ImGui::SetWindowFontScale(scale);
+
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        ImVec2 p = ImGui::GetWindowPos();
+
+        draw->AddRectFilled(p, ImVec2(p.x + width, p.y + height), bgCol, rounding);
+        draw->AddRect(p, ImVec2(p.x + width, p.y + height), borderCol, rounding);
+
+        if (ImGui::BeginTable("StatsTable", 3, ImGuiTableFlags_SizingStretchSame))
+        {
+            // --- SHARED HELPER FOR HEALTH & SCORE ---
+            auto DrawSimpleBlock = [&](const char* label, const char* value, const char* icon, ImU32 iconColor, ImU32 textColor, bool showSeparator)
+                {
+                    ImGui::TableNextColumn();
+                    float colWidth = ImGui::GetColumnWidth();
+                    float startX = ImGui::GetCursorScreenPos().x;
+                    float centerY = ImGui::GetCursorScreenPos().y + (height / 2.0f);
+
+                    ImGui::PushFont(fontMono); ImVec2 iconSz = ImGui::CalcTextSize(icon); ImGui::PopFont();
+                    ImGui::PushFont(fontMono); ImVec2 labelSz = ImGui::CalcTextSize(label); ImGui::PopFont();
+                    ImGui::PushFont(fontHeader); ImVec2 valueSz = ImGui::CalcTextSize(value); ImGui::PopFont();
+
+                    float gap = 22.0f * scale;
+                    float iconOffset = -gap - iconSz.x;
+                    float valueOffset = (labelSz.x - valueSz.x) / 2.0f; // Center value under label
+
+                    float groupMinX = (iconOffset < valueOffset) ? iconOffset : valueOffset;
+                    float groupMaxX = (labelSz.x > (valueOffset + valueSz.x)) ? labelSz.x : (valueOffset + valueSz.x);
+                    float totalGroupWidth = groupMaxX - groupMinX;
+
+                    float colCenter = startX + (colWidth / 2.0f);
+                    float screenLabelStart = colCenter - (totalGroupWidth / 2.0f) - groupMinX;
+
+                    ImGui::PushFont(fontMono);
+                    draw->AddText(ImVec2(screenLabelStart + iconOffset, centerY - iconSz.y / 2.0f), iconColor, icon);
+                    ImGui::PopFont();
+
+                    ImGui::PushFont(fontMono);
+                    draw->AddText(ImVec2(screenLabelStart, centerY - labelSz.y - (1.0f * scale)), ImGui::ColorConvertFloat4ToU32(colGrey), label);
+                    ImGui::PopFont();
+
+                    ImGui::PushFont(fontHeader);
+                    draw->AddText(ImVec2(screenLabelStart + valueOffset, centerY + (1.0f * scale)), textColor, value);
+                    ImGui::PopFont();
+
+                    if (showSeparator) {
+                        float sepH = height * 0.5f;
+                        float sepY = p.y + (height - sepH) / 2.0f;
+                        draw->AddLine(ImVec2(startX + colWidth, sepY), ImVec2(startX + colWidth, sepY + sepH), sepCol, 1.0f * scale);
+                    }
+                };
+
+            // 1. HEALTH (Trap Door Anim)
+            {
+                ImVec4 cIcon = colGold; ImVec4 cText = colWhite;
+                if (healthFlashTimer > 0.0f) {
+                    ImVec4 tCol = (healthChangeDir == -1) ? colRed : colGreen;
+                    float t = healthFlashTimer;
+                    cIcon = ImVec4(cIcon.x + (tCol.x - cIcon.x) * t, cIcon.y + (tCol.y - cIcon.y) * t, cIcon.z + (tCol.z - cIcon.z) * t, 1);
+                    cText = ImVec4(cText.x + (tCol.x - cText.x) * t, cText.y + (tCol.y - cText.y) * t, cText.z + (tCol.z - cText.z) * t, 1);
+                }
+                //DrawSimpleBlock("HEALTH", std::to_string((int)displayedHealth).c_str(), ICON_FA_HEART, ImGui::ColorConvertFloat4ToU32(cIcon), ImGui::ColorConvertFloat4ToU32(cText), true);
+                char healthBuf[16];
+                sprintf_s(healthBuf, "%d", (int)displayedHealth);
+                DrawSimpleBlock("HEALTH", healthBuf, ICON_FA_HEART, ImGui::ColorConvertFloat4ToU32(cIcon), ImGui::ColorConvertFloat4ToU32(cText), true);
+            }
+
+            // 2. SCORE (Rolling Anim)
+            {
+                char sb[32]; int ds = (int)displayedScore;
+                if (ds >= 1000) sprintf_s(sb, "%.1fk", (float)ds / 1000.0f); else sprintf_s(sb, "%d", ds);
+                DrawSimpleBlock("SCORE", sb, ICON_FA_TROPHY, ImGui::ColorConvertFloat4ToU32(colGold), ImGui::ColorConvertFloat4ToU32(colWhite), true);
+            }
+
+            // --- 3. ANTIDOTE & BACKPACK (CUSTOM RENDERER) ---
+            ImGui::TableNextColumn();
+            {
+                float colWidth = ImGui::GetColumnWidth();
+                float startX = ImGui::GetCursorScreenPos().x;
+                float centerY = ImGui::GetCursorScreenPos().y + (height / 2.0f);
+
+                const char* icon = ICON_FA_SYRINGE;
+                const char* label = "ANTIDOTE";
+
+                // Format Values
+                char antVal[16];
+                sprintf_s(antVal, "%d", antidoteCount);
+                char packVal[32]; sprintf_s(packVal, "%d/%d", backpackCount, maxBackpack);
+
+                // --- 1. CALCULATE WIDTHS ---
+                ImGui::PushFont(fontMono);   ImVec2 iconSz = ImGui::CalcTextSize(icon);    ImGui::PopFont();
+                ImGui::PushFont(fontMono);   ImVec2 labelSz = ImGui::CalcTextSize(label);   ImGui::PopFont();
+
+                // Scale Logic for Big Number
+                float currentScale = 1.0f;
+                if (antidoteScaleTimer > 0.0f) {
+                    // Easing: (Pop=1.5, Shrink=0.8) -> Return to 1.0
+                    float target = (antidoteScaleDir > 0) ? 1.5f : 0.8f;
+                    currentScale = 1.0f + (target - 1.0f) * antidoteScaleTimer; // Simple Linear return
+                }
+
+                ImGui::PushFont(fontHeader);
+                ImGui::SetWindowFontScale(currentScale * scale); // <--- Combine scales
+                ImVec2 antSz = ImGui::CalcTextSize(antVal);
+                ImGui::SetWindowFontScale(scale);         // Reset to global scale
+                ImGui::PopFont();
+
+                ImGui::PushFont(fontUI);
+                ImVec2 packSz = ImGui::CalcTextSize(packVal);
+                ImGui::PopFont();
+
+                float valGap = 8.0f * scale; // Scale gap
+                float compositeValueWidth = antSz.x + valGap + packSz.x;
+
+                float gap = 22.0f * scale; // Scale gap
+                float iconOffset = -gap - iconSz.x;
+
+                // Center the COMPOSITE VALUE block under the Label
+                float valueGroupOffset = (labelSz.x - compositeValueWidth) / 2.0f;
+
+                float groupMinX = (iconOffset < valueGroupOffset) ? iconOffset : valueGroupOffset;
+                float groupMaxX = (labelSz.x > (valueGroupOffset + compositeValueWidth)) ? labelSz.x : (valueGroupOffset + compositeValueWidth);
+                float totalGroupWidth = groupMaxX - groupMinX;
+
+                float colCenter = startX + (colWidth / 2.0f);
+                float screenLabelStart = colCenter - (totalGroupWidth / 2.0f) - groupMinX;
+
+                // --- 4. DRAW ---
+
+                // Draw Icon
+                ImGui::PushFont(fontMono);
+                ImU32 iconColor = (antidoteCount == 0) ? ImGui::ColorConvertFloat4ToU32(colDim) : ImGui::ColorConvertFloat4ToU32(colGold);
+                draw->AddText(ImVec2(screenLabelStart + iconOffset, centerY - iconSz.y / 2.0f), iconColor, icon);
+                ImGui::PopFont();
+
+                // Draw Label
+                ImGui::PushFont(fontMono);
+                draw->AddText(ImVec2(screenLabelStart, centerY - labelSz.y - (1.0f * scale)), ImGui::ColorConvertFloat4ToU32(colGrey), label);
+                ImGui::PopFont();
+
+                // Draw Composite Value
+                float currentX = screenLabelStart + valueGroupOffset;
+                float baselineY = centerY + (1.0f * scale);
+
+                // A. Big Antidote Number (Centered vertically based on its scaled height)
+                ImGui::PushFont(fontHeader);
+                ImGui::SetWindowFontScale(currentScale* scale);
+                ImU32 antColor = (antidoteCount == 0) ? ImGui::ColorConvertFloat4ToU32(colRed) : ImGui::ColorConvertFloat4ToU32(colWhite);
+
+                // Adjustment to keep text centered when scaling
+                float scaleShiftX = (antSz.x - (antSz.x / currentScale)) / 2.0f;
+                float scaleShiftY = (antSz.y - (antSz.y / currentScale)) / 2.0f;
+
+                draw->AddText(ImVec2(currentX - scaleShiftX, baselineY - scaleShiftY), antColor, antVal);
+
+                ImGui::SetWindowFontScale(scale); // Reset
+                ImGui::PopFont();
+
+                // Move cursor past big number
+                currentX += antSz.x + valGap;
+
+                // B. Small Backpack Number
+                ImGui::PushFont(fontUI);
+                ImU32 packColor = ImGui::ColorConvertFloat4ToU32(colGrey);
+
+                // Flash Gold if collecting
+                if (backpackPulseTimer > 0.0f) {
+                    ImVec4 cPack = colGrey;
+                    float t = backpackPulseTimer;
+                    cPack = ImVec4(cPack.x + (colGold.x - cPack.x) * t, cPack.y + (colGold.y - cPack.y) * t, cPack.z + (colGold.z - cPack.z) * t, 1);
+                    packColor = ImGui::ColorConvertFloat4ToU32(cPack);
+                }
+
+                // Vertical align small text to the baseline of big text roughly
+                // Or just center relative to centerY
+                draw->AddText(ImVec2(currentX, baselineY + (2.0f * scale)), packColor, packVal);
+                ImGui::PopFont();
+            }
+
+            ImGui::EndTable();
+        }
+    }
+    ImGui::End();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(2);
+}
+
+
+
 void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenHeight, float fps, int renderedObjects)
 {
     //if (!showGUI) return;
@@ -169,7 +541,19 @@ void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenH
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-    questManager.Render(fontUI, fontHeader, fontMono);
+    // --- 1. CALCULATE SCALE FACTOR ---
+   // Reference height is 1080.0f.
+   // If screen is 2160p (4K), scale becomes 2.0f.
+    float uiScale = (float)screenHeight / 1080.0f;
+
+    // Safety clamp (don't let it get too small on weird windows)
+    if (uiScale < 0.5f) uiScale = 0.5f;
+
+
+    questManager.Render(fontUI, fontHeader, fontMono, uiScale);
+
+    RenderStatsHUD(uiScale);
+
     if (showGUI)
     {
         // Styling Setup of Window
@@ -181,25 +565,26 @@ void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenH
         ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.20f, 0.20f, 0.20f, 1.0f)); // Hover
         ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.18f, 0.18f, 0.18f, 1.0f)); // Click
 
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 10));
-        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f); // Slight rounding on elements
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10 * uiScale, 10 * uiScale));
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f * uiScale);
 
         // Setup Window
-        ImGui::SetNextWindowSize(ImVec2(320, 500), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(320 * uiScale, 500 * uiScale), ImGuiCond_FirstUseEver);
         ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
 
         if (ImGui::Begin("GamePanel", nullptr, window_flags))
         {
+            ImGui::SetWindowFontScale(uiScale);
+
             // HEADER SECTION
             {
                 ImDrawList* drawList = ImGui::GetWindowDrawList();
                 ImVec2 p = ImGui::GetCursorScreenPos();
 
                 // Draw the "Blue Dot". We manually draw this because it glows in the design
-                drawList->AddCircleFilled(ImVec2(p.x + 4, p.y + 9), 4.0f, IM_COL32(59, 130, 246, 255)); // Blue
+                drawList->AddCircleFilled(ImVec2(p.x + (4 * uiScale), p.y + (9 * uiScale)), 4.0f * uiScale, IM_COL32(59, 130, 246, 255));
 
-                // Text Offset
-                ImGui::SetCursorPosX(25);
+                ImGui::SetCursorPosX(25 * uiScale);
 
                 // Big Bold Title
                 ImGui::PushFont(fontHeader);
@@ -227,7 +612,7 @@ void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenH
 
                 // "Change Background" Button
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
-                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 6.0f));
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 6.0f * uiScale));
                 if (ImGui::Button(ICON_FA_LAYER_GROUP "  Change Background", ImVec2(-1, 0))) {
                     changeBackground = !changeBackground;
                     AddLog("[SYSTEM] Background toggled");
@@ -267,7 +652,7 @@ void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenH
                 if (ImGui::BeginTable("DebugTable", 2))
                 {
                     ImGui::TableSetupColumn("Label");
-                    ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthFixed, 150.0f);
+                    ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthFixed, 150.0f * uiScale);
 
                     // Row 1 FPS
                     ImGui::TableNextRow();
