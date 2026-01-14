@@ -1,3 +1,5 @@
+#include <iostream>
+#include <string>
 #include "Graphics\window.h"
 #include "Camera\camera.h"
 #include "Shaders\shader.h"
@@ -31,6 +33,14 @@ Camera camera;
 // Light
 glm::vec3 lightColor = glm::vec3(1.0f);
 glm::vec3 lightPos = glm::vec3(-180.0f, 100.0f, -200.0f);
+
+// --- PLAYER HEALTH SYSTEM ---
+float playerHP = 100.0f;
+float maxPlayerHP = 100.0f;
+float damageRadius = 1.5f;     // Distance to take damage
+float damageFlashTimer = 0.0f; // For visual feedback
+// ----------------------------
+
 
 // Player
 glm::vec3 playerPos = glm::vec3(1.0f, -19.0f, 1.0f);
@@ -345,7 +355,7 @@ int main()
 			{
 				ModelMatrix = glm::mat4(1.0f);
 				ModelMatrix = glm::translate(ModelMatrix,
-					glm::vec3(baseX + x * stepX,groundY - (z * 0.01f), baseZ + z * stepZ));
+					glm::vec3(baseX + x * stepX, groundY - (z * 0.01f), baseZ + z * stepZ));
 				MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
 				glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
 				glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
@@ -400,7 +410,7 @@ int main()
 		glUniform1i(glGetUniformLocation(bodyShader.getId(), "bodyTexture"), 0);
 
 		// Head (static)
-		{	
+		{
 			// glUniform3f(glGetUniformLocation(bodyShader.getId(), "bodyColor"), 1.0f, 0.922f, 0.812f); // skin color
 
 			glm::mat4 headModel = glm::mat4(1.0f);
@@ -416,7 +426,7 @@ int main()
 			bodyBox.draw(bodyShader);
 			totalRenderedObjects++;
 		}
-		
+
 		// Torso (static)
 		{
 			glm::mat4 torsoModel = glm::mat4(1.0f);
@@ -532,6 +542,18 @@ int main()
 			glm::vec3 dir = playerPos - m.position;
 			float distance = glm::length(dir);
 
+			// --- DAMAGE LOGIC START ---
+			if (distance < damageRadius) {
+				// 10% Damage per second
+				float damage = (maxPlayerHP * 0.10f) * deltaTime;
+				playerHP -= damage;
+
+				// Trigger Red Flash
+				damageFlashTimer = 0.2f;
+			}
+			// --- DAMAGE LOGIC END ---
+
+
 			if (distance < chaseDistance && distance > 0.01f) {
 				dir = glm::normalize(dir);
 				m.position += dir * monsterSpeed * deltaTime;
@@ -632,6 +654,33 @@ int main()
 				totalRenderedObjects++;
 			}
 		}
+
+
+		// --- HEALTH & VISUALS UPDATE ---
+
+		// 1. Red Flash Effect
+		if (damageFlashTimer > 0.0f) {
+			damageFlashTimer -= deltaTime;
+			gui.changeBackground = true; // Turn background RED
+		}
+		else {
+			gui.changeBackground = false; // Reset to BLUE
+		}
+
+		// 2. Death / Respawn Check
+		if (playerHP <= 0.0f) {
+			std::cout << ">>> YOU DIED! Respawning... <<<" << std::endl;
+			playerHP = maxPlayerHP;
+			playerPos = glm::vec3(1.0f, -19.0f, 1.0f); // Reset Position
+			monsters.clear(); // Clear enemies
+		}
+
+		// 3. Debug Print (Every 1 sec approx, or use ImGui text if available)
+		// We will just print if damaged to avoid spam
+		if (damageFlashTimer > 0.15f) { // Only print on initial hit frame approx
+			std::cout << "HP: " << (int)playerHP << " / " << (int)maxPlayerHP << std::endl;
+		}
+		// -------------------------------
 
 		gui.Render(playerPos, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects);
 
