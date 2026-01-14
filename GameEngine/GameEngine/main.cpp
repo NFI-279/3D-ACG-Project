@@ -59,6 +59,18 @@ struct Monster {
 };
 
 std::vector<Monster> monsters;
+// --- SYRINGE SYSTEM ---
+struct Syringe {
+	glm::vec3 position;
+	float rotationY;
+};
+std::vector<Syringe> syringes;
+int playerSyringeCount = 0;
+const int MAX_SYRINGES = 5;
+float syringeSpawnTimer = 0.0f;
+const float SYRINGE_SPAWN_INTERVAL = 10.0f; // 10 seconds
+const float SYRINGE_COLLECT_RADIUS = 2.0f;
+
 float monsterSpeed = 5.0f;
 float chaseDistance = 10.0f; // maximum distance to start chasing
 float spawnInterval = 3.0f;       // seconds between monster spawns
@@ -170,6 +182,8 @@ int main()
 	Mesh plane = loader.loadObj("Resources/Models/plane.obj", textures3);
 	//Mesh player = loader.loadObj("Resources/Models/player.obj", textures2);
 	Mesh towerMesh = loader.loadObj("Resources/Models/plane.obj", textures4);
+	Mesh syringeMesh = loader.loadObj("Resources/Models/syringe.obj", textures4); // Using tower texture as placeholder
+
 	//Mesh treeMesh = loader.loadObj("Resources/Models/tree1.obj");
 	Mesh bodyBox = loader.loadObj("Resources/Models/cube.obj", bodyTextures);
 
@@ -204,6 +218,36 @@ int main()
 
 		float currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
+		// --- SYRINGE UPDATE ---
+		syringeSpawnTimer += deltaTime;
+		if (syringeSpawnTimer >= SYRINGE_SPAWN_INTERVAL) {
+			syringeSpawnTimer = 0.0f;
+			for(int i=0; i<10; i++) {
+                float randomX = mapMinX + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (mapMaxX - mapMinX)));
+                float randomZ = mapMinZ + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (mapMaxZ - mapMinZ)));
+                syringes.push_back({ glm::vec3(randomX, -19.0f, randomZ), 0.0f });
+            }
+            std::cout << "10 Syringes spawned!" << std::endl;
+		}
+
+		for (auto it = syringes.begin(); it != syringes.end(); ) {
+			float dist = glm::distance(playerPos, it->position);
+			if (dist < SYRINGE_COLLECT_RADIUS) {
+				if (playerSyringeCount < MAX_SYRINGES) {
+					playerSyringeCount++;
+					std::cout << "Collected Syringe! Inventory: " << playerSyringeCount << "/5" << std::endl;
+					it = syringes.erase(it);
+				}
+				else {
+					++it;
+				}
+			}
+			else {
+				it->rotationY += 50.0f * deltaTime;
+				++it;
+			}
+		}
+
 		lastFrame = currentFrame;
 
 		// fps calculation
@@ -681,6 +725,24 @@ int main()
 			std::cout << "HP: " << (int)playerHP << " / " << (int)maxPlayerHP << std::endl;
 		}
 		// -------------------------------
+
+
+		// --- RENDER SYRINGES ---
+		shader.use();
+		for (const auto& s : syringes) {
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, s.position);
+			model = glm::rotate(model, glm::radians(s.rotationY), glm::vec3(0, 1, 0));
+			model = glm::scale(model, glm::vec3(0.1f));
+
+			// Assuming ProjectionMatrix, ViewMatrix, MatrixID2, ModelMatrixID are available in this scope
+			glm::mat4 mvp = ProjectionMatrix * ViewMatrix * model;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &mvp[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &model[0][0]);
+
+			syringeMesh.draw(shader);
+			totalRenderedObjects++;
+		}
 
 		gui.Render(playerPos, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects);
 
