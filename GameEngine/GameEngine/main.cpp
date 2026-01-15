@@ -40,7 +40,7 @@ float maxPlayerHP = 100.0f;
 float damageRadius = 1.5f;     // Distance to take damage
 float damageFlashTimer = 0.0f; // For visual feedback
 // ----------------------------
-
+int playerScore = 0;
 
 // Player
 glm::vec3 playerPos = glm::vec3(1.0f, -19.0f, 1.0f);
@@ -70,7 +70,6 @@ std::vector<GarbageItem> garbageItems;
 int playerBackpackCount = 0;   // Current trash (0 to 5)
 int playerAntidoteCount = 0;
 const int MAX_BACKPACK = 5;
-const int MAX_ANTIDOTES = 5; // Like we mentioned in the story
 
 float itemSpawnTimer = 0.0f;
 const float ITEM_SPAWN_INTERVAL = 5.0f; // Spawns faster now
@@ -247,21 +246,22 @@ int main()
 			float dist = glm::distance(playerPos, it->position);
 			if (dist < ITEM_COLLECT_RADIUS) {
 				playerBackpackCount++;
-				bool crafted = false;
+
+				playerScore += 150;
+
+				if (playerHP < maxPlayerHP) // Heal player on collection
+				{
+					playerHP += 5.0f;
+					if (playerHP > maxPlayerHP) playerHP = maxPlayerHP; // Cap at 100
+
+					std::cout << "Trash collected! Healed +5 HP. Current: " << (int)playerHP << std::endl;
+				}
+
 				if (playerBackpackCount >= MAX_BACKPACK) {
-					if (playerAntidoteCount < MAX_ANTIDOTES)
-					{
 						playerBackpackCount = 0; // Reset Backpack
 						playerAntidoteCount++;   // Gain 1 Ammo
-						crafted = true;
-						std::cout << ">>> CRAFTED ANTIDOTE! Ammo: " << playerAntidoteCount << " <<<" << std::endl;
-					}
-					else
-					{
-						// We are full on Ammo! 
-						// Keep Backpack at 5/5 (Pending)
-						std::cout << "Ammo Full! Holding trash in backpack." << std::endl;
-					}
+						playerScore += 350; // Bonus Score for crafting
+						std::cout << ">>> CRAFTED ANTIDOTE! Total: " << playerAntidoteCount << " <<<" << std::endl;
 				}
 				it = garbageItems.erase(it);
 			} // TODO : Edge case : Backpack is Full (5/5) AND we couldn't craft (Ammo Full)
@@ -745,6 +745,8 @@ int main()
 		if (playerHP <= 0.0f) {
 			std::cout << ">>> YOU DIED! Respawning... <<<" << std::endl;
 			playerHP = maxPlayerHP;
+			playerScore = 0; // Reset Score
+			playerBackpackCount = 0; // Clear Backpack
 			playerPos = glm::vec3(1.0f, -19.0f, 1.0f); // Reset Position
 			monsters.clear(); // Clear enemies
 		}
@@ -774,7 +776,7 @@ int main()
 			totalRenderedObjects++;
 		}
 
-		gui.Render(playerPos, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects, (int)playerHP, playerBackpackCount, playerAntidoteCount);
+		gui.Render(playerPos, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects, playerScore, (int)playerHP, playerBackpackCount, playerAntidoteCount);
 
 		// TEMPORARY DEBUG KEY
 		static bool fPressed = false;

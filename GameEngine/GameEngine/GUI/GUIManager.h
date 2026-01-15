@@ -22,7 +22,7 @@ public:
     void Shutdown();
 
     void Render(const glm::vec3& playerPos, int screenWidth, int screenHeight, float fps, int renderedObjects,
-        int currentHealth, int currentBackpack, int currentAntidotes);
+        int currentScore, int currentHealth, int currentBackpack, int currentAntidotes);
 
     void AddLog(const std::string& message) {
         if (logs.size() > 50) logs.erase(logs.begin()); // Keep last 50 logs
