@@ -9,8 +9,6 @@
 #include "imgui.h"
 #include "GUI/GUIManager.h"
 
-void processKeyboardInput();
-
 struct Wall {
 	glm::vec3 localPos;   
 	bool rotateY;      
@@ -30,9 +28,9 @@ glm::vec3 origins[4] = {
 	glm::vec3(255.0f, 0.0f, 137.0f)   // fourth block
 };
 
-struct Building {
-	//glm::vec3 position;        // world position of building center
+struct Building {        
 	std::vector<Wall> walls;   // 4 walls
+	float minX, maxX, minZ, maxZ; // coords for collision
 };
 std::vector<Building> buildings;
 
@@ -132,6 +130,10 @@ float groundY = -20.0f;
 GUIManager gui; // Create my instance for the GUI
 static bool openMenu = false; // To manage the Insert key press
 
+void spawnBuilding(const glm::vec3& origin);
+bool collidesWithBuildings(const glm::vec3& p);
+void processKeyboardInput();
+
 int main()
 {
 	gui.Init(window.getWindow());
@@ -217,28 +219,15 @@ int main()
 	Mesh box = loader.loadObj("Resources/Models/cube.obj", textures);
 	Mesh plane = loader.loadObj("Resources/Models/plane.obj", textures3);
 	//Mesh player = loader.loadObj("Resources/Models/player.obj", textures2);
-	Mesh towerMesh = loader.loadObj("Resources/Models/plane.obj", textures4);
+	Mesh wallMesh = loader.loadObj("Resources/Models/plane.obj", textures4);
 	Mesh syringeMesh = loader.loadObj("Resources/Models/syringe.obj", textures4); // Using tower texture as placeholder
 
 	//Mesh treeMesh = loader.loadObj("Resources/Models/tree1.obj");
 	Mesh bodyBox = loader.loadObj("Resources/Models/cube.obj", bodyTextures);
 
 	// Creates Buildings
-	for (int i = 0; i < 4; i++) {
-		glm::vec3 layoutOrigin = origins[i];
-		for (const auto& cell : layout)
-		{
-			Building building;
-			for (const Wall& w : baseWalls)
-			{
-				glm::vec3 shiftedPos = w.localPos;
-				shiftedPos.x -= layoutOrigin.x - cell.x * step;
-				shiftedPos.z += layoutOrigin.z + cell.y * step;
-				building.walls.push_back({ shiftedPos, w.rotateY });
-			}
-			buildings.push_back(building);
-		}
-	}
+	for (int i = 0; i < 4; i++)
+		spawnBuilding(origins[i]);
 
 	// Trees
 	trees.push_back({ glm::vec3(10.0f, -19.5f, 10.0f), 1.5f });
@@ -367,7 +356,17 @@ int main()
 		if (glm::length(moveDir) > 0.001f)
 		{
 			moveDir = glm::normalize(moveDir);
-			playerPos += moveDir * velocity;
+
+			glm::vec3 nextPos = playerPos;
+			nextPos.x += moveDir.x * velocity; // X
+			if (!collidesWithBuildings(nextPos))
+				playerPos.x = nextPos.x;
+		
+			nextPos = playerPos;
+			nextPos.z += moveDir.z * velocity; // Z
+			if (!collidesWithBuildings(nextPos))
+				playerPos.z = nextPos.z;
+
 			playerYaw = glm::degrees(atan2(moveDir.z, moveDir.x));
 			walkCycle += glm::length(moveDir) * velocity * walkSpeedFactor;
 		}
@@ -385,16 +384,24 @@ int main()
 			timeSinceLastSpawn = 0.0f;
 
 			Monster m;
-			float offsetX = ((float)rand() / RAND_MAX - 0.5f) * spawnDistance * 2.0f;
-			float offsetZ = ((float)rand() / RAND_MAX - 0.5f) * spawnDistance * 2.0f;
+			int attempt = 5;
 
-			m.position = glm::vec3(
-				glm::clamp(playerPos.x + offsetX, mapMinX, mapMaxX),
-				playerPos.y,
-				glm::clamp(playerPos.z + offsetZ, mapMinZ, mapMaxZ)
-			);
-			m.bodyScale = 1.0f;
-			monsters.push_back(m);
+			while (attempt--) {
+				float offsetX = ((float)rand() / RAND_MAX - 0.5f) * spawnDistance * 2.0f;
+				float offsetZ = ((float)rand() / RAND_MAX - 0.5f) * spawnDistance * 2.0f;
+
+				m.position = glm::vec3(
+					glm::clamp(playerPos.x + offsetX, mapMinX, mapMaxX),
+					playerPos.y,
+					glm::clamp(playerPos.z + offsetZ, mapMinZ, mapMaxZ)
+				);
+				m.bodyScale = 1.0f;
+				if (!collidesWithBuildings(m.position))
+				{
+					monsters.push_back(m);
+					break;
+				}
+			}
 		}
 
 
@@ -481,23 +488,20 @@ int main()
 				ModelMatrix = glm::mat4(1.0f);
 				//ModelMatrix = glm::translate(ModelMatrix, building.position);
 				ModelMatrix = glm::translate(ModelMatrix, wall.localPos);
-
 				ModelMatrix = glm::rotate(ModelMatrix, (90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
 				if (wall.rotateY) {
 					ModelMatrix = glm::rotate(ModelMatrix, (90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 				}
-
 				ModelMatrix = glm::scale(ModelMatrix, glm::vec3(0.153f, 0.1f, 0.153f));
 
 				MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
 				glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
 				glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
 
-				towerMesh.draw(shader);
+				wallMesh.draw(shader);
 				totalRenderedObjects++;
 			}
 		}
-
 
 		for (const Tree& tree : trees)
 		{
@@ -676,9 +680,20 @@ int main()
 
 			if (distance < chaseDistance && distance > 0.01f) {
 				dir = glm::normalize(dir);
-				m.position += dir * monsterSpeed * deltaTime;
+				float moveStep = monsterSpeed * deltaTime;
+
+				glm::vec3 nextPos = m.position; // X
+				nextPos.x += dir.x * moveStep;
+				if (!collidesWithBuildings(nextPos))
+					m.position.x = nextPos.x;
+
+				nextPos = m.position;
+				nextPos.z += dir.z * moveStep; // Z
+				if (!collidesWithBuildings(nextPos))
+					m.position.z = nextPos.z;
+
 				m.yaw = glm::degrees(atan2(dir.z, dir.x)) + 90.0f;
-				m.walkCycle += glm::length(dir * monsterSpeed * deltaTime) * walkSpeedFactor;
+				m.walkCycle += moveStep * walkSpeedFactor;
 			}
 
 			// Base model transform (position + yaw)
@@ -875,6 +890,51 @@ int main()
 		window.update();
 	}
 	gui.Shutdown();
+}
+
+void spawnBuilding(const glm::vec3& origin)
+{
+	for (const auto& cell : layout)
+	{
+		Building building;
+		for (const Wall& w : baseWalls)
+		{
+			glm::vec3 pos = w.localPos;
+			pos.x -= origin.x - cell.x * step;
+			pos.z += origin.z + cell.y * step;
+			building.walls.push_back({ pos, w.rotateY });
+		}
+
+		building.minX = 1e9f; 
+		building.maxX = -1e9f;
+		building.minZ = 1e9f; 
+		building.maxZ = -1e9f;
+
+		for (const Wall& w : building.walls)
+		{
+			building.minX = std::min(building.minX, w.localPos.x);
+			building.maxX = std::max(building.maxX, w.localPos.x);
+			building.minZ = std::min(building.minZ, w.localPos.z);
+			building.maxZ = std::max(building.maxZ, w.localPos.z);
+		}
+
+		const float bound = 0.75f;
+		building.minX -= bound; 
+		building.maxX += bound;
+		building.minZ -= bound; 
+		building.maxZ += bound;
+
+		buildings.push_back(building);
+	}
+}
+
+bool collidesWithBuildings(const glm::vec3& p)
+{
+	for (const Building& b : buildings)
+		if (p.x >= b.minX && p.x <= b.maxX &&
+			p.z >= b.minZ && p.z <= b.maxZ)
+			return true;
+	return false;
 }
 
 void processKeyboardInput()
