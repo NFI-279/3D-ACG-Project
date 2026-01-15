@@ -11,12 +11,39 @@
 
 void processKeyboardInput();
 
-struct Tower {
-	glm::vec3 position;
-	glm::vec3 scale;
-	bool rotateY;
+struct Wall {
+	glm::vec3 localPos;   
+	bool rotateY;      
 };
-std::vector<Tower> towers;
+std::vector<Wall> baseWalls = {
+	{ glm::vec3(-34.0f, 0.0f, 39.0f), false },
+	{ glm::vec3(-34.0f, 0.0f, 66.5f), false },
+	{ glm::vec3(-34.0f, 0.0f, 66.5f), true  },
+	{ glm::vec3(-61.5f, 0.0f, 66.5f), true  }
+};
+
+float step = 38.0f;
+glm::vec3 origins[4] = {
+	glm::vec3(76.0f, 0.0f, 0.0f),   // first block
+	glm::vec3(76.0f, 0.0f, 137.0f),   // second block
+	glm::vec3(255.0f, 0.0f, 0.0f),   // third block
+	glm::vec3(255.0f, 0.0f, 137.0f)   // fourth block
+};
+
+struct Building {
+	//glm::vec3 position;        // world position of building center
+	std::vector<Wall> walls;   // 4 walls
+};
+std::vector<Building> buildings;
+
+std::vector<glm::ivec2> layout = {
+	glm::ivec2{0, 0},  
+	glm::ivec2{0, 1},  
+	glm::ivec2{1, 0},  
+	glm::ivec2{1, 1},  
+	glm::ivec2{2, 0},  
+	glm::ivec2{2, 1},
+};
 
 struct Tree {
 	glm::vec3 position;
@@ -196,11 +223,22 @@ int main()
 	//Mesh treeMesh = loader.loadObj("Resources/Models/tree1.obj");
 	Mesh bodyBox = loader.loadObj("Resources/Models/cube.obj", bodyTextures);
 
-	// Create wall for tower
-	towers.push_back({ glm::vec3(-34.0f, 0.0f, 39.0f), glm::vec3(0.154f, 0.1f, 0.154f), false });
-	towers.push_back({ glm::vec3(-34.0f, 0.0f, 66.0f), glm::vec3(0.154f, 0.1f, 0.154f), false });
-	towers.push_back({ glm::vec3(-34.5f, 0.0f, 66.5f), glm::vec3(0.154f, 0.1f, 0.154f), true });
-	towers.push_back({ glm::vec3(-61.5f, 0.0f, 66.5f), glm::vec3(0.154f, 0.1f, 0.154f), true });
+	// Creates Buildings
+	for (int i = 0; i < 4; i++) {
+		glm::vec3 layoutOrigin = origins[i];
+		for (const auto& cell : layout)
+		{
+			Building building;
+			for (const Wall& w : baseWalls)
+			{
+				glm::vec3 shiftedPos = w.localPos;
+				shiftedPos.x -= layoutOrigin.x - cell.x * step;
+				shiftedPos.z += layoutOrigin.z + cell.y * step;
+				building.walls.push_back({ shiftedPos, w.rotateY });
+			}
+			buildings.push_back(building);
+		}
+	}
 
 	// Trees
 	trees.push_back({ glm::vec3(10.0f, -19.5f, 10.0f), 1.5f });
@@ -438,20 +476,28 @@ int main()
 			}
 		}
 
-		for (const Tower& tower : towers) {
-			ModelMatrix = glm::mat4(1.0f);
-			ModelMatrix = glm::translate(ModelMatrix, tower.position);
-			ModelMatrix = glm::rotate(ModelMatrix, (90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-			if (tower.rotateY) {
-				ModelMatrix = glm::rotate(ModelMatrix, (90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		for (const Building& building : buildings) {
+			for (const Wall& wall : building.walls) {
+				ModelMatrix = glm::mat4(1.0f);
+				//ModelMatrix = glm::translate(ModelMatrix, building.position);
+				ModelMatrix = glm::translate(ModelMatrix, wall.localPos);
+
+				ModelMatrix = glm::rotate(ModelMatrix, (90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+				if (wall.rotateY) {
+					ModelMatrix = glm::rotate(ModelMatrix, (90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+				}
+
+				ModelMatrix = glm::scale(ModelMatrix, glm::vec3(0.153f, 0.1f, 0.153f));
+
+				MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
+				glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
+				glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
+
+				towerMesh.draw(shader);
+				totalRenderedObjects++;
 			}
-			ModelMatrix = glm::scale(ModelMatrix, tower.scale);
-			MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
-			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
-			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
-			towerMesh.draw(shader);
-			totalRenderedObjects++;
 		}
+
 
 		for (const Tree& tree : trees)
 		{
