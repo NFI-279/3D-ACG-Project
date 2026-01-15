@@ -110,6 +110,11 @@ int main()
 {
 	gui.Init(window.getWindow());
 
+	// HIDE CURSOR 
+	glfwSetInputMode(window.getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+	
+
 	glClearColor(0.2f, 0.8f, 1.0f, 1.0f);
 
 	//building and compiling shader program
@@ -206,6 +211,9 @@ int main()
 	static double lastX = window.getWidth() / 2.0;
 	static double lastY = window.getHeight() / 2.0;
 
+	// Initial mouse position setup to prevent startup jump
+	glfwGetCursorPos(window.getWindow(), &lastX, &lastY);
+
 	// Stats counters
 	int totalRenderedObjects = 0;
 
@@ -223,7 +231,7 @@ int main()
 
 		float currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
-		// --- SYRINGE UPDATE ---
+		// GARBAGE ITEM SPAWNING AND COLLECTION
 		itemSpawnTimer += deltaTime;
 		if (itemSpawnTimer >= ITEM_SPAWN_INTERVAL) {
 			itemSpawnTimer = 0.0f;
@@ -283,17 +291,24 @@ int main()
 		// Mouse Input
 		double xpos, ypos;
 		glfwGetCursorPos(window.getWindow(), &xpos, &ypos);
-		float xoffset = (xpos - lastX) * mouseSensitivity;
-		float yoffset = (lastY - ypos) * mouseSensitivity;
+		if (!gui.showGUI)
+		{
+			float xoffset = (xpos - lastX) * mouseSensitivity;
+			float yoffset = (lastY - ypos) * mouseSensitivity; // Reversed since y-coordinates range from bottom to top
+
+			camYaw += xoffset;
+			camPitch += yoffset;
+			camPitch = glm::clamp(camPitch, -60.0f, 10.0f);
+		}
 		lastX = xpos;
 		lastY = ypos;
 
 		ImGuiIO& io = ImGui::GetIO();
 		//if (!io.WantCaptureMouse && !gui.showGUI)
 		//{
-		camYaw += xoffset;
-		camPitch += yoffset;
-		camPitch = glm::clamp(camPitch, -60.0f, 10.0f);
+		//camYaw += xoffset;
+		//camPitch += yoffset;
+		//camPitch = glm::clamp(camPitch, -60.0f, 10.0f);
 		//}
 
 	// Camera Directions
@@ -761,12 +776,12 @@ int main()
 
 		gui.Render(playerPos, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects, (int)playerHP, playerBackpackCount, playerAntidoteCount);
 
-		// TODO FILIP: Remove when out of testing !!!!
+		// TEMPORARY DEBUG KEY
 		static bool fPressed = false;
 		if (window.isPressed(GLFW_KEY_F)) {
 			if (!fPressed) {
 				gui.questManager.CompleteCurrentQuest();
-				gui.AddLog("[GAME] Quest Objective Completed");
+				gui.AddLog("[DEBUG] Force Completed Quest"); // Log it so you know
 				fPressed = true;
 			}
 		}
@@ -779,13 +794,22 @@ int main()
 			if (!openMenu)
 			{
 				gui.showGUI = !gui.showGUI;
-				if (!gui.showGUI)
+				if (gui.showGUI)
 				{
+					// MENU OPENED: Show Cursor let it move freely
+					glfwSetInputMode(window.getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+
+					// Reset ImGui mouse states so it doesn't think you are dragging
 					ImGuiIO& io = ImGui::GetIO();
 					io.MouseDown[0] = false;
-					io.MouseDown[1] = false;
-					io.MouseDown[2] = false;
-					io.WantCaptureMouse = false;
+				}
+				else
+				{
+					// MENU CLOSED: Hide Cursor lock it to center
+					glfwSetInputMode(window.getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+					// Reset the "last" mouse position to the current position
+					glfwGetCursorPos(window.getWindow(), &lastX, &lastY);
 				}
 				openMenu = true;
 			}

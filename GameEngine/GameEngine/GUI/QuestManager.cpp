@@ -49,7 +49,7 @@ void QuestManager::CompleteCurrentQuest() {
 }
 
 // Added 'float scale' to arguments
-void QuestManager::Render(ImFont* fontUI, ImFont* fontHeader, ImFont* fontMono, float scale) {
+void QuestManager::Render(ImFont* fontUI, ImFont* fontHeader, ImFont* fontMono, float scale, bool showDetails) {
     if (quests.empty()) return;
 
     float dt = ImGui::GetIO().DeltaTime;
@@ -185,8 +185,7 @@ void QuestManager::Render(ImFont* fontUI, ImFont* fontHeader, ImFont* fontMono, 
         ImGui::SetWindowFontScale(scale);
 
         // Animation Logic
-        bool isHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
-        if (isHovered) hoverAnimation += dt * 5.0f;
+        if (showDetails) hoverAnimation += dt * 5.0f;
         else hoverAnimation -= dt * 5.0f;
 
         if (hoverAnimation < 0.0f) hoverAnimation = 0.0f;

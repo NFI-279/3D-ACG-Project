@@ -90,7 +90,6 @@ void GUIManager::Init(GLFWwindow* window)
     AddLog("[SYSTEM] Engine initialized");
     AddLog("[RENDER] OpenGL context ready");
 }
-bool test = false;
 
 bool DrawToggleSwitch(const char* label, bool* v)
 {
@@ -223,35 +222,6 @@ void GUIManager::RenderStatsHUD(float scale)
 {
     ImGuiIO& io = ImGui::GetIO();
     float dt = io.DeltaTime;
-
-    // =========================================================
-    // 1. DEBUG SIMULATION
-    // =========================================================
-
-    // K = Damage, L = Heal, M = Score
-    if (ImGui::IsKeyPressed(ImGuiKey_K)) playerHealth -= 15;
-    if (ImGui::IsKeyPressed(ImGuiKey_L)) playerHealth += 15;
-    if (ImGui::IsKeyPressed(ImGuiKey_M)) playerScore += 500;
-
-    // --- NEW MECHANIC SIMULATION ---
-
-    // 'J' = Collect Trash (Fill Backpack)
-    if (ImGui::IsKeyPressed(ImGuiKey_J))
-    {
-        backpackCount++;
-        backpackPulseTimer = 1.0f; // Pulse Gold
-
-        // CRAFTING EVENT (Loop Complete)
-        if (backpackCount >= maxBackpack)
-        {
-            backpackCount = 0;      // Reset Backpack
-            antidoteCount++;        // Gain Ammo
-
-            // Trigger "POP" Animation
-            antidoteScaleTimer = 1.0f;
-            antidoteScaleDir = 1.0f; // Grow
-        }
-    }
 
     // 'O' = Shoot Antidote
     if (ImGui::IsKeyPressed(ImGuiKey_O))
@@ -552,8 +522,9 @@ void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenH
     // Safety clamp (don't let it get too small on weird windows)
     if (uiScale < 0.5f) uiScale = 0.5f;
 
+    bool showQuestDetails = ImGui::IsKeyDown(ImGuiKey_Tab);
 
-    questManager.Render(fontUI, fontHeader, fontMono, uiScale);
+    questManager.Render(fontUI, fontHeader, fontMono, uiScale, showQuestDetails);
 
     RenderStatsHUD(uiScale);
 
@@ -632,10 +603,6 @@ void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenH
                 ImGui::Spacing();
                 DrawToggleSwitch("Enable Animation", &enableAnimation);
 
-                /*
-                if (DrawToggleSwitch("Enable Animation", &enableAnimation)) {
-                     AddLog(enableAnimation ? "[ANIM] Animation started" : "[ANIM] Animation stopped");
-                 }*/
                 ImGui::Spacing();
             }
             else
