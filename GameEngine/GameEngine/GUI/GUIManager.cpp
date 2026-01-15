@@ -533,9 +533,12 @@ void GUIManager::RenderStatsHUD(float scale)
 
 
 
-void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenHeight, float fps, int renderedObjects)
+void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenHeight, float fps, int renderedObjects, int currentHealth, int currentBackpack, int currentAntidotes)
 {
     //if (!showGUI) return;
+    this->playerHealth = currentHealth;
+    this->backpackCount = currentBackpack;
+    this->antidoteCount = currentAntidotes;
 
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();

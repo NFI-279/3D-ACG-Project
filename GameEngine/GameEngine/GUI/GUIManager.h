@@ -57,7 +57,7 @@ public:
 
     void Init(GLFWwindow* window);
 
-    void Render(const glm::vec3& playerPos, int screenWidth, int screenHeight, float fps, int renderedObjects);
+    void Render(const glm::vec3& playerPos, int screenWidth, int screenHeight, float fps, int renderedObjects, int currentHealth, int currentBackpack, int currentAntidotes);
 
     void RenderStatsHUD(float scale);
 

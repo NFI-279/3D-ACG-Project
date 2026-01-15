@@ -60,16 +60,21 @@ struct Monster {
 
 std::vector<Monster> monsters;
 // --- SYRINGE SYSTEM ---
-struct Syringe {
+struct GarbageItem {
 	glm::vec3 position;
 	float rotationY;
 };
-std::vector<Syringe> syringes;
-int playerSyringeCount = 0;
-const int MAX_SYRINGES = 5;
-float syringeSpawnTimer = 0.0f;
-const float SYRINGE_SPAWN_INTERVAL = 10.0f; // 10 seconds
-const float SYRINGE_COLLECT_RADIUS = 2.0f;
+
+std::vector<GarbageItem> garbageItems;
+
+int playerBackpackCount = 0;   // Current trash (0 to 5)
+int playerAntidoteCount = 0;
+const int MAX_BACKPACK = 5;
+const int MAX_ANTIDOTES = 5; // Like we mentioned in the story
+
+float itemSpawnTimer = 0.0f;
+const float ITEM_SPAWN_INTERVAL = 5.0f; // Spawns faster now
+const float ITEM_COLLECT_RADIUS = 2.0f;
 
 float monsterSpeed = 5.0f;
 float chaseDistance = 10.0f; // maximum distance to start chasing
@@ -219,29 +224,39 @@ int main()
 		float currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
 		// --- SYRINGE UPDATE ---
-		syringeSpawnTimer += deltaTime;
-		if (syringeSpawnTimer >= SYRINGE_SPAWN_INTERVAL) {
-			syringeSpawnTimer = 0.0f;
-			for(int i=0; i<10; i++) {
+		itemSpawnTimer += deltaTime;
+		if (itemSpawnTimer >= ITEM_SPAWN_INTERVAL) {
+			itemSpawnTimer = 0.0f;
+			for(int i=0; i<5; i++) {
                 float randomX = mapMinX + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (mapMaxX - mapMinX)));
                 float randomZ = mapMinZ + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (mapMaxZ - mapMinZ)));
-                syringes.push_back({ glm::vec3(randomX, -19.0f, randomZ), 0.0f });
+				garbageItems.push_back({ glm::vec3(randomX, -19.0f, randomZ), 0.0f });
             }
             std::cout << "10 Syringes spawned!" << std::endl;
 		}
 
-		for (auto it = syringes.begin(); it != syringes.end(); ) {
+		for (auto it = garbageItems.begin(); it != garbageItems.end(); ) {
 			float dist = glm::distance(playerPos, it->position);
-			if (dist < SYRINGE_COLLECT_RADIUS) {
-				if (playerSyringeCount < MAX_SYRINGES) {
-					playerSyringeCount++;
-					std::cout << "Collected Syringe! Inventory: " << playerSyringeCount << "/5" << std::endl;
-					it = syringes.erase(it);
+			if (dist < ITEM_COLLECT_RADIUS) {
+				playerBackpackCount++;
+				bool crafted = false;
+				if (playerBackpackCount >= MAX_BACKPACK) {
+					if (playerAntidoteCount < MAX_ANTIDOTES)
+					{
+						playerBackpackCount = 0; // Reset Backpack
+						playerAntidoteCount++;   // Gain 1 Ammo
+						crafted = true;
+						std::cout << ">>> CRAFTED ANTIDOTE! Ammo: " << playerAntidoteCount << " <<<" << std::endl;
+					}
+					else
+					{
+						// We are full on Ammo! 
+						// Keep Backpack at 5/5 (Pending)
+						std::cout << "Ammo Full! Holding trash in backpack." << std::endl;
+					}
 				}
-				else {
-					++it;
-				}
-			}
+				it = garbageItems.erase(it);
+			} // TODO : Edge case : Backpack is Full (5/5) AND we couldn't craft (Ammo Full)
 			else {
 				it->rotationY += 50.0f * deltaTime;
 				++it;
@@ -729,7 +744,7 @@ int main()
 
 		// --- RENDER SYRINGES ---
 		shader.use();
-		for (const auto& s : syringes) {
+		for (const auto& s : garbageItems) {
 			glm::mat4 model = glm::mat4(1.0f);
 			model = glm::translate(model, s.position);
 			model = glm::rotate(model, glm::radians(s.rotationY), glm::vec3(0, 1, 0));
@@ -740,11 +755,11 @@ int main()
 			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &mvp[0][0]);
 			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &model[0][0]);
 
-			syringeMesh.draw(shader);
+			syringeMesh.draw(shader); // TODO : Replace with syringe mesh
 			totalRenderedObjects++;
 		}
 
-		gui.Render(playerPos, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects);
+		gui.Render(playerPos, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects, (int)playerHP, playerBackpackCount, playerAntidoteCount);
 
 		// TODO FILIP: Remove when out of testing !!!!
 		static bool fPressed = false;
