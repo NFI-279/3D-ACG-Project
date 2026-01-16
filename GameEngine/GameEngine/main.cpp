@@ -133,6 +133,16 @@ float itemSpawnTimer = 0.0f;
 const float ITEM_SPAWN_INTERVAL = 5.0f; // Spawns faster now
 const float ITEM_COLLECT_RADIUS = 2.0f;
 
+bool IsMonsterTargeted(const Monster& m, const glm::vec3& rayOrigin, const glm::vec3& rayDir, float radius = 0.5f)
+{
+	glm::vec3 oc = m.position - rayOrigin;
+	float t = glm::dot(oc, rayDir);          // distance along the ray
+	glm::vec3 closestPoint = rayOrigin + rayDir * t;
+	float distanceToMonster = glm::length(m.position - closestPoint);
+	return distanceToMonster <= radius;
+}
+float maxKillDistance = 8.0f; // maximum distance to kill
+
 float monsterSpeed = 5.0f;
 float chaseDistance = 10.0f; // maximum distance to start chasing
 float spawnInterval = 3.0f;       // seconds between monster spawns
@@ -140,7 +150,7 @@ float timeSinceLastSpawn = 0.0f;  // accumulates time
 float spawnDistance = 10.0f;      // min distance from player
 
 // Camera
-float playerSpeed = 50.0f;
+float playerSpeed = 20.0f;
 float rotationSpeed = 90.0f;
 float camYaw = -90.0f;
 float camPitch = -20.0f;
@@ -314,6 +324,12 @@ int main()
 		window.clear();
 		totalRenderedObjects = 0;
 
+		// Left mouse click
+		static bool leftClickedLastFrame = false;
+		bool leftClickNow = glfwGetMouseButton(window.getWindow(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+		bool crosshairClicked = leftClickNow && !leftClickedLastFrame;
+		leftClickedLastFrame = leftClickNow;
+
 		float currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
 		// GARBAGE ITEM SPAWNING AND COLLECTION
@@ -469,7 +485,7 @@ int main()
 		playerPos.y = -19.5f;
 		playerPos.z = glm::clamp(playerPos.z, mapMinZ, mapMaxZ);
 
-		// Camera orbit
+		/*// Camera orbit
 		glm::vec3 offset;
 		offset.x = cos(glm::radians(camYaw)) * cos(glm::radians(camPitch));
 		offset.y = sin(glm::radians(camPitch));
@@ -477,7 +493,18 @@ int main()
 
 		glm::vec3 cameraPos = playerPos - offset * cameraDistance;
 		camera.setCameraPosition(cameraPos);
-		camera.setCameraViewDirection(playerPos - cameraPos);
+		camera.setCameraViewDirection(playerPos - cameraPos);*/
+
+		// First person camera
+		glm::vec3 front;
+		front.x = cos(glm::radians(camYaw)) * cos(glm::radians(camPitch));
+		front.y = sin(glm::radians(camPitch));
+		front.z = sin(glm::radians(camYaw)) * cos(glm::radians(camPitch));
+		front = glm::normalize(front);
+
+		glm::vec3 eyeOffset = glm::vec3(0.0f, 1.4f, 0.0f);
+		camera.setCameraPosition(playerPos + eyeOffset);
+		camera.setCameraViewDirection(front);
 
 		//// Code for the light ////
 
@@ -593,7 +620,7 @@ int main()
 
 		glUniform1i(glGetUniformLocation(shader.getId(), "isTree"), 0);
 
-		/// SIMPLE HUMAN MODEL ///
+		/*/// SIMPLE HUMAN MODEL ///
 
 		bodyShader.use();
 		//glUniform3f(glGetUniformLocation(bodyShader.getId(), "bodyColor"), 0.396f, 0.502f, 0.341f); // dark green
@@ -728,13 +755,21 @@ int main()
 
 			bodyBox.draw(bodyShader);
 			totalRenderedObjects++;
-		}
+		}*/
 
+		bodyShader.use();
 		glUniform3f(glGetUniformLocation(bodyShader.getId(), "bodyColor"), 0.0f, 1.0f, 0.0f);
 
-		for (Monster& m : monsters) {
+		// Get ray from camera
+		glm::vec3 rayOrigin = camera.getCameraPosition();
+		glm::vec3 rayDir = glm::normalize(camera.getCameraViewDirection());
+
+		for (size_t i = 0; i < monsters.size(); i++)
+		{
+			Monster& m = monsters[i];
 			glm::vec3 dir = playerPos - m.position;
 			float distance = glm::length(dir);
+			float distanceToPlayer = glm::distance(playerPos, m.position);
 
 			// --- DAMAGE LOGIC START ---
 			if (distance < damageRadius) {
@@ -764,6 +799,16 @@ int main()
 
 				m.yaw = glm::degrees(atan2(dir.z, dir.x)) + 90.0f;
 				m.walkCycle += moveStep * walkSpeedFactor;
+			}
+
+			// Crosshair kill logic
+			if (crosshairClicked && IsMonsterTargeted(m, rayOrigin, rayDir, 1.0f) && distanceToPlayer <= maxKillDistance ) // 1.0f is radius
+			{
+				std::cout << ">>> MONSTER KILLED! <<<" << std::endl;
+				playerScore += 500;
+				monsters.erase(monsters.begin() + i);
+				i--;
+				continue;
 			}
 
 			// Base model transform (position + yaw)
