@@ -29,6 +29,9 @@ public:
         logs.push_back(message);
     }
 
+    // crosshair at the center of the screen
+    void DrawCrosshair(int screenWidth, int screenHeight);
+
 private:
     // Synced from Main
     int playerHealth = 100;

@@ -501,7 +501,33 @@ void GUIManager::RenderStatsHUD(float scale)
     ImGui::PopStyleVar(2);
 }
 
+// Crosshair
+void GUIManager::DrawCrosshair(int screenWidth, int screenHeight)
+{
+    if (showGUI) return;
 
+    ImDrawList* draw = ImGui::GetForegroundDrawList();
+    ImVec2 center(screenWidth * 0.5f, screenHeight * 0.5f);
+
+    const float size = 10.0f;
+    const float thickness = 2.0f;
+    ImU32 color = IM_COL32(0, 255, 0, 220); // green
+
+    // Horizontal line
+    draw->AddLine(
+        ImVec2(center.x - size, center.y),
+        ImVec2(center.x + size, center.y),
+        color,
+        thickness
+    );
+    // Vertical line
+    draw->AddLine(
+        ImVec2(center.x, center.y - size),
+        ImVec2(center.x, center.y + size),
+        color,
+        thickness
+    );
+}
 
 void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenHeight, float fps, int renderedObjects, int currentScore, int currentHealth, int currentBackpack, int currentAntidotes)
 
@@ -736,6 +762,9 @@ void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenH
         ImGui::PopStyleVar(2);
         ImGui::PopStyleColor(5);
     }
+
+    // Draw crosshair
+    DrawCrosshair(screenWidth, screenHeight);
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
