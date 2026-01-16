@@ -33,14 +33,47 @@ struct Building {
 	float minX, maxX, minZ, maxZ; // coords for collision
 };
 std::vector<Building> buildings;
-
-std::vector<glm::ivec2> layout = {
+std::vector<glm::ivec2> layoutBuildings = {
 	glm::ivec2{0, 0},  
 	glm::ivec2{0, 1},  
 	glm::ivec2{1, 0},  
 	glm::ivec2{1, 1},  
 	glm::ivec2{2, 0},  
 	glm::ivec2{2, 1},
+};
+
+float stepTilex = 38.0f;
+float stepTilez = 37.0f;
+glm::vec3 terrainOrigins[4] = {
+	glm::vec3(5.0f,  -19.9f,  2.0f),   // area 0
+	glm::vec3(-174.5f,-19.9f,  2.0f),   // area 2
+	glm::vec3(5.0f,  -19.9f, 139.5f),  // area 1
+	glm::vec3(-174.5f,-19.9f, 139.5f)   // area 3
+};
+
+struct TerrainTile {
+	glm::vec3 position;
+	float scaleX = 0.153f;
+	float scaleZ = 0.193f;
+};
+std::vector<TerrainTile> terrainTiles;
+
+glm::vec3 originTile = glm::vec3(5.0f, -19.9f, 2.0f);
+std::vector<glm::ivec2> layoutTiles = {
+	glm::ivec2{0, 0},
+	glm::ivec2{1, 0},
+	glm::ivec2{2, 0},
+	glm::ivec2{3, 0},
+	glm::ivec2{4, 0},
+	glm::ivec2{4, 1},
+	glm::ivec2{4, 2},
+	glm::ivec2{4, 3},
+	glm::ivec2{0, 1},
+	glm::ivec2{0, 2},
+	glm::ivec2{0, 3},
+	glm::ivec2{1, 3},
+	glm::ivec2{2, 3},
+	glm::ivec2{3, 3},
 };
 
 struct Tree {
@@ -107,7 +140,7 @@ float timeSinceLastSpawn = 0.0f;  // accumulates time
 float spawnDistance = 10.0f;      // min distance from player
 
 // Camera
-float playerSpeed = 10.0f;
+float playerSpeed = 50.0f;
 float rotationSpeed = 90.0f;
 float camYaw = -90.0f;
 float camPitch = -20.0f;
@@ -155,6 +188,7 @@ int main()
 	GLuint tex2 = loadBMP("Resources/Textures/rock.bmp");
 	GLuint tex3 = loadBMP("Resources/Textures/city1.bmp");
 	GLuint tex4 = loadBMP("Resources/Textures/tower1.bmp");
+	GLuint tex5 = loadBMP("Resources/Textures/terrain.bmp");
 	GLuint bodyTex = loadBMP("Resources/Textures/dirty.bmp");
 
 	glEnable(GL_DEPTH_TEST);
@@ -205,6 +239,11 @@ int main()
 	textures4[0].id = tex4;
 	textures4[0].type = "texture_diffuse";
 
+	std::vector<Texture> textures5;
+	textures5.push_back(Texture());
+	textures5[0].id = tex5;
+	textures5[0].type = "texture_diffuse";
+
 	std::vector<Texture> bodyTextures;
 	bodyTextures.push_back(Texture());
 	bodyTextures[0].id = bodyTex;
@@ -220,10 +259,30 @@ int main()
 	Mesh plane = loader.loadObj("Resources/Models/plane.obj", textures3);
 	//Mesh player = loader.loadObj("Resources/Models/player.obj", textures2);
 	Mesh wallMesh = loader.loadObj("Resources/Models/plane.obj", textures4);
+	Mesh terrainMesh = loader.loadObj("Resources/Models/plane.obj", textures5);
 	Mesh syringeMesh = loader.loadObj("Resources/Models/syringe.obj", textures4); // Using tower texture as placeholder
 
 	//Mesh treeMesh = loader.loadObj("Resources/Models/tree1.obj");
 	Mesh bodyBox = loader.loadObj("Resources/Models/cube.obj", bodyTextures);
+
+	// Create Terrain
+	for (int i = 0; i < 4; i++) {
+		const glm::vec3& areaOrigin = terrainOrigins[i];
+		for (const auto& cell : layoutTiles) {
+			TerrainTile tile;
+			tile.position = areaOrigin;
+			tile.position.x -= cell.x * stepTilex;
+			tile.position.z += cell.y * stepTilez;
+			if (cell.x == 0 && !(i&1)) {
+				tile.position.x -= cell.x * stepTilex + 5;
+				tile.scaleX *= 0.8f;
+			}
+			if (cell.x == 4 && i&1) {
+				tile.scaleX *= 1.2f;
+			}
+			terrainTiles.push_back({ tile });
+		}
+	}
 
 	// Creates Buildings
 	for (int i = 0; i < 4; i++)
@@ -481,6 +540,17 @@ int main()
 				plane.draw(shader);
 				totalRenderedObjects++;
 			}
+		}
+
+		for (const TerrainTile& terrainTile : terrainTiles) {
+			ModelMatrix = glm::mat4(1.0f);
+			ModelMatrix = glm::translate(ModelMatrix, terrainTile.position);
+			ModelMatrix = glm::scale(ModelMatrix, glm::vec3(terrainTile.scaleX, 0.1f, terrainTile.scaleZ));
+			MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
+			terrainMesh.draw(shader);
+			totalRenderedObjects++;
 		}
 
 		for (const Building& building : buildings) {
@@ -894,7 +964,7 @@ int main()
 
 void spawnBuilding(const glm::vec3& origin)
 {
-	for (const auto& cell : layout)
+	for (const auto& cell : layoutBuildings)
 	{
 		Building building;
 		for (const Wall& w : baseWalls)
