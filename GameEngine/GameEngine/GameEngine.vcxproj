@@ -138,6 +138,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Model Loading\meshLoaderObj.cpp" />
     <ClCompile Include="Model Loading\mesh.cpp" />
+    <ClCompile Include="Mountain\mountain.cpp" />
     <ClCompile Include="Shaders\shader.cpp" />
     <ClCompile Include="Model Loading\texture.cpp" />
   </ItemGroup>
@@ -163,6 +164,7 @@
     <ClInclude Include="Model Loading\meshLoaderObj.h" />
     <ClInclude Include="Model Loading\mesh.h" />
     <ClInclude Include="Model Loading\stringTokenizer.h" />
+    <ClInclude Include="Mountain\mountain.h" />
     <ClInclude Include="Shaders\shader.h" />
     <ClInclude Include="Model Loading\texture.h" />
   </ItemGroup>
@@ -175,6 +177,8 @@
   <ItemGroup>
     <Image Include="Resources\Textures\city1.bmp" />
     <Image Include="Resources\Textures\city2.bmp" />
+    <Image Include="Resources\Textures\mountain.bmp" />
+    <Image Include="Resources\Textures\plane.bmp" />
     <Image Include="Resources\Textures\rock.bmp" />
     <Image Include="Resources\Textures\wood.bmp" />
   </ItemGroup>

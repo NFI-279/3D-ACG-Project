@@ -8,6 +8,7 @@
 #include "Model Loading\meshLoaderObj.h"
 #include "imgui.h"
 #include "GUI/GUIManager.h"
+#include "Mountain/mountain.h"
 
 struct Wall {
 	glm::vec3 localPos;   
@@ -75,6 +76,12 @@ std::vector<glm::ivec2> layoutTiles = {
 	glm::ivec2{2, 3},
 	glm::ivec2{3, 3},
 };
+
+const float BASE_HEIGHT = -20.0f;
+const float MOUNTAIN_BUFFER = 100.0f;
+const float MOUNTAIN_RAMP = 280.0f;
+const float MAX_MOUNTAIN_HEIGHT = 480.0f;
+const float PADDING = 220.0f;
 
 struct Tree {
 	glm::vec3 position;
@@ -158,10 +165,16 @@ float mouseSensitivity = 0.1f;
 float cameraDistance = 12.0f;
 
 //Map Boundaries
-float mapMinX = -360.0f;
-float mapMaxX = 0.0f;
-float mapMinZ = 0.0f;
-float mapMaxZ = 270.0f;
+float townMinX = -360.0f;
+float townMaxX = 0.0f;
+float townMinZ = 0.0f;
+float townMaxZ = 270.0f;
+
+//Player Boundaries 
+float mapMinX = -460.0f;
+float mapMaxX = 100.0f;
+float mapMinZ = -100.0f;
+float mapMaxZ = 380.0f;
 
 //Plane
 float baseX = 0.0f;
@@ -196,10 +209,13 @@ int main()
 	//Textures
 	GLuint tex = loadBMP("Resources/Textures/wood.bmp");
 	GLuint tex2 = loadBMP("Resources/Textures/rock.bmp");
-	GLuint tex3 = loadBMP("Resources/Textures/city1.bmp");
-	GLuint tex4 = loadBMP("Resources/Textures/tower1.bmp");
+	GLuint tex3 = loadBMP("Resources/Textures/city.bmp");
+	GLuint tex4 = loadBMP("Resources/Textures/tower.bmp");
 	GLuint tex5 = loadBMP("Resources/Textures/terrain.bmp");
+	GLuint tex6 = loadBMP("Resources/Textures/plane.bmp");
+
 	GLuint bodyTex = loadBMP("Resources/Textures/dirty.bmp");
+	GLuint mountainTex = loadBMP("Resources/Textures/mountain.bmp");
 
 	glEnable(GL_DEPTH_TEST);
 
@@ -254,11 +270,20 @@ int main()
 	textures5[0].id = tex5;
 	textures5[0].type = "texture_diffuse";
 
+	std::vector<Texture> textures6;
+	textures6.push_back(Texture());
+	textures6[0].id = tex6;
+	textures6[0].type = "texture_diffuse";
+
 	std::vector<Texture> bodyTextures;
 	bodyTextures.push_back(Texture());
 	bodyTextures[0].id = bodyTex;
 	bodyTextures[0].type = "texture_diffuse";
 
+	std::vector<Texture> mountainTextures;
+	mountainTextures.push_back(Texture());
+	mountainTextures[0].id = mountainTex;
+	mountainTextures[0].type = "texture_diffuse";
 
 	Mesh mesh(vert, ind, textures3);
 
@@ -266,7 +291,8 @@ int main()
 	MeshLoaderObj loader;
 	Mesh sun = loader.loadObj("Resources/Models/sphere.obj");
 	Mesh box = loader.loadObj("Resources/Models/cube.obj", textures);
-	Mesh plane = loader.loadObj("Resources/Models/plane.obj", textures3);
+	Mesh map = loader.loadObj("Resources/Models/plane.obj", textures3);
+	Mesh plane = loader.loadObj("Resources/Models/plane.obj", textures6);
 	//Mesh player = loader.loadObj("Resources/Models/player.obj", textures2);
 	Mesh wallMesh = loader.loadObj("Resources/Models/plane.obj", textures4);
 	Mesh terrainMesh = loader.loadObj("Resources/Models/plane.obj", textures5);
@@ -293,6 +319,19 @@ int main()
 			terrainTiles.push_back({ tile });
 		}
 	}
+
+	MountainConfig cfg;
+	cfg.mapMinX = townMinX;
+	cfg.mapMaxX = townMaxX;
+	cfg.mapMinZ = townMinZ;
+	cfg.mapMaxZ = townMaxZ;
+	cfg.baseHeight = BASE_HEIGHT-0.1f;
+	cfg.buffer = MOUNTAIN_BUFFER;
+	cfg.ramp = MOUNTAIN_RAMP;
+	cfg.maxHeight = MAX_MOUNTAIN_HEIGHT;
+	cfg.padding = PADDING;
+	cfg.gridResolution = 220;
+	Mesh mountainMesh = generateMountainMesh(cfg, mountainTextures);
 
 	// Creates Buildings
 	for (int i = 0; i < 4; i++)
@@ -337,8 +376,8 @@ int main()
 		if (itemSpawnTimer >= ITEM_SPAWN_INTERVAL) {
 			itemSpawnTimer = 0.0f;
 			for(int i=0; i<5; i++) {
-                float randomX = mapMinX + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (mapMaxX - mapMinX)));
-                float randomZ = mapMinZ + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (mapMaxZ - mapMinZ)));
+                float randomX = townMinX + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (townMaxX - townMinX)));
+                float randomZ = townMinZ + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (townMaxZ - townMinZ)));
 				garbageItems.push_back({ glm::vec3(randomX, -19.0f, randomZ), 0.0f });
             }
             std::cout << "10 Syringes spawned!" << std::endl;
@@ -466,9 +505,9 @@ int main()
 				float offsetZ = ((float)rand() / RAND_MAX - 0.5f) * spawnDistance * 2.0f;
 
 				m.position = glm::vec3(
-					glm::clamp(playerPos.x + offsetX, mapMinX, mapMaxX),
+					glm::clamp(playerPos.x + offsetX, townMinX, townMaxX),
 					playerPos.y,
-					glm::clamp(playerPos.z + offsetZ, mapMinZ, mapMaxZ)
+					glm::clamp(playerPos.z + offsetZ, townMinZ, townMaxZ)
 				);
 				m.bodyScale = 1.0f;
 				if (!collidesWithBuildings(m.position))
@@ -482,7 +521,7 @@ int main()
 
 		// Ground 
 		playerPos.x = glm::clamp(playerPos.x, mapMinX, mapMaxX);
-		playerPos.y = -19.5f;
+		playerPos.y = BASE_HEIGHT + 0.1f;
 		playerPos.z = glm::clamp(playerPos.z, mapMinZ, mapMaxZ);
 
 		/*// Camera orbit
@@ -553,7 +592,15 @@ int main()
 		/*box.draw(shader);
 		totalRenderedObjects++;*/
 
-		///// Test plane Obj file //////
+		// Draw mountains
+		ModelMatrix = glm::mat4(1.0f);
+		MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
+		glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
+		glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
+		mountainMesh.draw(shader);
+		totalRenderedObjects++;
+
+		// Draw Map
 		for (int x = 0; x < 2; x++)
 		{
 			for (int z = 0; z < 2; z++)
@@ -564,7 +611,27 @@ int main()
 				MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
 				glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
 				glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
-				plane.draw(shader);
+				map.draw(shader);
+				totalRenderedObjects++;
+			}
+		}
+
+		for (int x = -1; x <= 2; x++)
+		{
+			for (int z = -1; z <= 2; z++)
+			{
+				if (x >= 0 && x < 2 && z >= 0 && z < 2)
+					continue;
+
+				ModelMatrix = glm::mat4(1.0f);
+				ModelMatrix = glm::translate(
+					ModelMatrix,
+					glm::vec3(baseX + x * stepX, groundY + 0.25f, baseZ + z * stepZ)
+				);
+				MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
+				glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
+				glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
+				plane.draw(shader); 
 				totalRenderedObjects++;
 			}
 		}

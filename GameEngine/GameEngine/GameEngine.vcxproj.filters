@@ -60,6 +60,9 @@
     <ClCompile Include="GUI\QuestManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Mountain\mountain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Graphics\window.h">
@@ -131,6 +134,9 @@
     <ClInclude Include="GUI\QuestManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Mountain\mountain.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\vertex_shader.glsl" />
@@ -149,6 +155,12 @@
       <Filter>Resource Files</Filter>
     </Image>
     <Image Include="Resources\Textures\city2.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="Resources\Textures\mountain.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="Resources\Textures\plane.bmp">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>
