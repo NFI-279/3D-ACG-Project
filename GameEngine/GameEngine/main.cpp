@@ -93,6 +93,12 @@ struct Tree {
 };
 std::vector<Tree> trees;
 
+struct RecipeNote {
+	glm::vec3 position;
+	bool visible = false;
+};
+RecipeNote recipeNote;
+
 float deltaTime = 0.0f;	// time between current frame and last frame
 float lastFrame = 0.0f;
 
@@ -160,7 +166,7 @@ bool IsMonsterTargeted(const Monster& m, const glm::vec3& rayOrigin, const glm::
 
 bool IsTreeTargeted(const Tree& tree, const glm::vec3& rayOrigin, const glm::vec3& rayDir, float radius = 1.1f)
 {
-	float maxDistance = 5.0f;
+	float maxDistance = 10.0f;
 	glm::vec3 target = tree.position + glm::vec3(0.0f, tree.scale * 1.2f, 0.0f);
 	glm::vec3 oc = target - rayOrigin;
 	float t = glm::dot(oc, rayDir);
@@ -246,6 +252,8 @@ int main()
 	GLuint bodyTex = loadBMP("Resources/Textures/dirty.bmp");
 	GLuint mountainTex = loadBMP("Resources/Textures/mountain.bmp");
 
+	GLuint recipeTex = loadBMP("Resources/Textures/recipe.bmp");
+
 	glEnable(GL_DEPTH_TEST);
 
 	//Test custom mesh loading
@@ -324,6 +332,11 @@ int main()
 	leavesTextures[0].id = leavesTex;
 	leavesTextures[0].type = "texture_diffuse";
 
+	std::vector<Texture> recipeTexture;
+	recipeTexture.push_back(Texture());
+	recipeTexture[0].id = recipeTex;
+	recipeTexture[0].type = "texture_diffuse";
+
 	Mesh mesh(vert, ind, textures3);
 
 	// Create Obj files - easier :)
@@ -341,6 +354,8 @@ int main()
 
 	Mesh trunkBox = loader.loadObj("Resources/Models/cube.obj", trunkTextures);
 	Mesh leavesBox = loader.loadObj("Resources/Models/sphere.obj", leavesTextures);
+
+	Mesh recipeMesh = loader.loadObj("Resources/Models/plane.obj", recipeTexture);
 
 	// Create Terrain
 	for (int i = 0; i < 4; i++) {
@@ -441,10 +456,19 @@ int main()
 					if (tree.hitCount >= 5)
 					{
 						tree.alive = false;
-						std::cout << "TREE DESTROYED" << std::endl;
+						recipeNote.position = tree.position + glm::vec3(0.0f, 2.5f, 0.0f);
+						recipeNote.visible = true;
+
+						std::cout << "TREE DESTROYED & RECIPE DROPPED" << std::endl;
 					}
 				}
 			}
+		}
+
+		if (recipeNote.visible && glm::distance(playerPos, recipeNote.position) < 2.0f)
+		{
+			recipeNote.visible = false;
+			std::cout << "You found a recipe!" << std::endl;
 		}
 
 		// GARBAGE ITEM SPAWNING AND COLLECTION
@@ -1079,6 +1103,20 @@ int main()
 
 			syringeMesh.draw(shader); // TODO : Replace with syringe mesh
 			totalRenderedObjects++;
+		}
+
+		if (recipeNote.visible)
+		{
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, recipeNote.position);
+			model = glm::rotate(model, (90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+			model = glm::scale(model, glm::vec3(0.005f)); 
+
+			glm::mat4 mvp = ProjectionMatrix * ViewMatrix * model;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &mvp[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &model[0][0]);
+
+			recipeMesh.draw(shader);
 		}
 
 		gui.Render(playerPos, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects, playerScore, (int)playerHP, playerBackpackCount, playerAntidoteCount);
