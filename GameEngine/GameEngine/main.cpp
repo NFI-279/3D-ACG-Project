@@ -168,6 +168,15 @@ float bulletSpawnTimer = 0.0f;
 const float BULLET_SPAWN_INTERVAL = 5.0f; 
 const float BULLET_COLLECT_RADIUS = 2.0f;
 
+// Flying bullet
+struct FlyingBullet {
+	glm::vec3 position;
+	glm::vec3 direction;
+	float speed;
+	float lifeTime;
+};
+std::vector<FlyingBullet> flyingBullets;
+
 // Syringe
 struct Syringe {
 	glm::vec3 position;
@@ -279,6 +288,8 @@ int main()
 
 	GLuint bulletTex = loadBMP("Resources/Textures/rock.bmp"); // TODO Change to bullet.bmp
 
+	GLuint texBaseColor = loadBMP("Resources/Textures/gray.bmp");
+
 	glEnable(GL_DEPTH_TEST);
 
 	//Test custom mesh loading
@@ -367,6 +378,11 @@ int main()
 	bulletTexture[0].id = bulletTex;
 	bulletTexture[0].type = "texture_diffuse";
 
+	std::vector<Texture> pistolTextures;
+	pistolTextures.push_back(Texture());
+	pistolTextures[0].id = texBaseColor;
+	pistolTextures[0].type = "texture_diffuse";
+
 	Mesh mesh(vert, ind, textures3);
 
 	// Create Obj files - easier :)
@@ -388,6 +404,9 @@ int main()
 
 	Mesh bulletMesh = loader.loadObj("Resources/Models/sphere.obj", bulletTexture); // TODO Replace bullet.obj
 	Mesh syringeMesh = loader.loadObj("Resources/Models/syringe.obj", textures4); // Using tower texture as placeholder
+
+	Mesh pistolMesh = loader.loadObj("Resources/Models/GLOCK19.obj", pistolTextures);
+
 
 	// Create Terrain
 	for (int i = 0; i < 4; i++) {
@@ -483,6 +502,15 @@ int main()
 				// 3. Enable Hit Detection
 				shotFired = true;
 
+				// Spawn flying bullet
+				FlyingBullet fb;
+				fb.position = camera.getCameraPosition() + rayDir * 0.6f;
+				fb.direction = rayDir;
+				fb.speed = 45.0f;
+				fb.lifeTime = 1.2f;
+
+				flyingBullets.push_back(fb);
+
 				std::cout << "BANG! Ammo left: " << player.bulletCount << std::endl;
 			}
 			else
@@ -491,6 +519,29 @@ int main()
 			}
 		}
 
+		for (auto it = flyingBullets.begin(); it != flyingBullets.end(); )
+		{
+			it->position += it->direction * it->speed * deltaTime;
+			it->lifeTime -= deltaTime;
+
+			// collision with monsters
+			bool hit = false;
+			for (size_t i = 0; i < monsters.size(); i++)
+			{
+				if (glm::distance(it->position, monsters[i].position + glm::vec3(0, 1.2f, 0)) < 0.6f)
+				{
+					player.score += 500;
+					monsters.erase(monsters.begin() + i);
+					hit = true;
+					break;
+				}
+			}
+
+			if (it->lifeTime <= 0.0f || hit)
+				it = flyingBullets.erase(it);
+			else
+				++it;
+		}
 
 		for (Tree& tree : trees)
 		{
@@ -1043,7 +1094,7 @@ int main()
 				m.walkCycle += moveStep * player.walkSpeedFactor;
 			}
 
-			// Crosshair kill logic
+			/*// Crosshair kill logic
 			if (shotFired && IsMonsterTargeted(m, rayOrigin, rayDir, 2.0f) && distanceToPlayer <= player.maxHitDistance)
 			{
 				std::cout << ">>> MONSTER KILLED! <<<" << std::endl;
@@ -1057,7 +1108,7 @@ int main()
 				shotFired = false;
 
 				continue;
-			}
+			}*/
 
 			// Base model transform (position + yaw)
 			glm::mat4 humanModel = glm::mat4(1.0f);
@@ -1213,6 +1264,65 @@ int main()
 			bulletMesh.draw(shader);
 			totalRenderedObjects++;
 		}
+
+		for (const auto& fb : flyingBullets)
+		{
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, fb.position);
+			model = glm::scale(model, glm::vec3(0.01f));
+
+			glm::mat4 mvp = ProjectionMatrix * ViewMatrix * model;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &mvp[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &model[0][0]);
+
+			bulletMesh.draw(shader);
+		}
+
+		// Pistol
+		glDisable(GL_DEPTH_TEST);
+
+		// Camera vectors
+		glm::vec3 camPos = camera.getCameraPosition();
+		//glm::vec3 camForward = camera.getCameraViewDirection();
+		camForward = glm::normalize(camForward);
+		//glm::vec3 camRight = glm::normalize(glm::cross(camForward, glm::vec3(0.0f, 1.0f, 0.0f)));
+		glm::vec3 camUp = glm::vec3(0, 1, 0);
+
+		// optional
+		float sway = sin(glfwGetTime() * 6.0f) * 0.005f;
+		float recoil = justClicked ? -0.03f : 0.0f;
+
+		/*// Pistol position relative to camera
+		glm::vec3 pistolPos = camPos
+			+ camForward * 0.6f   // forward offset
+			+ camRight * 0.45f    // right hand
+			+ camUp * -0.45f // down offset
+			+ camRight * sway
+			+ camForward * recoil;*/
+
+		// Pistol offset in camera space
+		glm::vec3 pistolOffset = camForward * 0.6f     // in front of camera
+			+ camRight * 0.55f     // to the right
+			+ camUp * -0.55f;   // slightly down
+
+		glm::mat4 pistolModel = glm::mat4(1.0f);
+
+		pistolModel = glm::translate(pistolModel, camPos + pistolOffset);
+
+		// align rotation with camera
+		// cam orientation: X=right, Y=up, Z=-forward
+		pistolModel[0] = glm::vec4(camRight, 0.0f);    // X
+		pistolModel[1] = glm::vec4(camUp, 0.0f);       // Y
+		pistolModel[2] = glm::vec4(-camForward, 0.0f); // Z
+
+		pistolModel = glm::scale(pistolModel, glm::vec3(3.6f, 2.4f, 10.5f));
+
+		glm::mat4 pistolMVP = ProjectionMatrix * ViewMatrix * pistolModel;
+		glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &pistolMVP[0][0]);
+		glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &pistolModel[0][0]);
+
+		pistolMesh.draw(shader);
+		glEnable(GL_DEPTH_TEST);
 
 		if (recipeNote.visible)
 		{
