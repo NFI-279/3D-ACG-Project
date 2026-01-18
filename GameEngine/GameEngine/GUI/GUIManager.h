@@ -18,8 +18,12 @@ public:
     bool dayNightCycle = false;    // Scene Control
     bool enableAnimation = false;  // Scene Control
 
+    float crosshairAlpha = 1.0f; // 1.0 = Visible, 0.0 = Hidden
+
     void Init(GLFWwindow* window);
     void Shutdown();
+
+    void TriggerShootAnimation();
 
     void Render(const glm::vec3& playerPos, int screenWidth, int screenHeight, float fps, int renderedObjects,
         int currentScore, int currentHealth, int currentBackpack, int currentAntidotes);
@@ -29,8 +33,9 @@ public:
         logs.push_back(message);
     }
 
+
     // crosshair at the center of the screen
-    void DrawCrosshair(int screenWidth, int screenHeight);
+    void DrawCrosshair(float scale);
 
 private:
     // Synced from Main

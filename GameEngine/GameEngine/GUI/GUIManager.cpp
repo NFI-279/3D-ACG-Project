@@ -36,7 +36,7 @@ void GUIManager::Init(GLFWwindow* window)
 
     // Config for Icons
     ImFontConfig iconsConfig;
-	iconsConfig.FontDataOwnedByAtlas = false; // For HxD arrays so we don't free memory
+    iconsConfig.FontDataOwnedByAtlas = false; // For HxD arrays so we don't free memory
     iconsConfig.MergeMode = true;             // Combine with the previous font
     iconsConfig.PixelSnapH = true;
     iconsConfig.GlyphMinAdvanceX = 13.0f;     // Force constant width for icons
@@ -89,6 +89,12 @@ void GUIManager::Init(GLFWwindow* window)
     // Add some initial logs
     AddLog("[SYSTEM] Engine initialized");
     AddLog("[RENDER] OpenGL context ready");
+}
+
+void GUIManager::TriggerShootAnimation()
+{
+    antidoteScaleTimer = 0.5f;
+    antidoteScaleDir = -1.0f;
 }
 
 bool DrawToggleSwitch(const char* label, bool* v)
@@ -168,7 +174,6 @@ void TextRightAligned(const char* text, ImVec4 color = ImVec4(1, 1, 1, 1)) {
 }
 
 
-// 1. ADD THIS HELPER: Draws text with a drop shadow
 void CenterTextWithShadow(const char* text, ImFont* font, float scale, ImVec4 color, ImVec4 shadowCol = ImVec4(0, 0, 0, 0.8f)) {
     float winWidth = ImGui::GetColumnWidth();
 
@@ -195,7 +200,6 @@ void CenterTextWithShadow(const char* text, ImFont* font, float scale, ImVec4 co
     ImGui::PopFont();
 }
 
-// 2. ADD THIS HELPER: Draws the Icon with a shadow
 void CenterIconWithShadow(const char* icon, float scale, ImVec4 color) {
     float winWidth = ImGui::GetColumnWidth();
 
@@ -228,10 +232,7 @@ void GUIManager::RenderStatsHUD(float scale)
     {
         if (antidoteCount > 0) {
             antidoteCount--;
-
-            // Trigger "RECOIL" Animation
-            antidoteScaleTimer = 0.5f; // Faster than grow
-            antidoteScaleDir = -1.0f;  // Shrink
+            TriggerShootAnimation();
         }
     }
 
@@ -460,7 +461,7 @@ void GUIManager::RenderStatsHUD(float scale)
 
                 // A. Big Antidote Number (Centered vertically based on its scaled height)
                 ImGui::PushFont(fontHeader);
-                ImGui::SetWindowFontScale(currentScale* scale);
+                ImGui::SetWindowFontScale(currentScale * scale);
                 ImU32 antColor = (antidoteCount == 0) ? ImGui::ColorConvertFloat4ToU32(colRed) : ImGui::ColorConvertFloat4ToU32(colWhite);
 
                 // Adjustment to keep text centered when scaling
@@ -501,33 +502,55 @@ void GUIManager::RenderStatsHUD(float scale)
     ImGui::PopStyleVar(2);
 }
 
-// Crosshair
-void GUIManager::DrawCrosshair(int screenWidth, int screenHeight)
+void GUIManager::DrawCrosshair(float scale)
 {
     if (showGUI) return;
 
     ImDrawList* draw = ImGui::GetForegroundDrawList();
-    ImVec2 center(screenWidth * 0.5f, screenHeight * 0.5f);
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
 
-    const float size = 10.0f;
-    const float thickness = 2.0f;
-    ImU32 color = IM_COL32(0, 255, 0, 220); // green
+    float thickness = 2.5f * scale;
+    float length = 6.0f * scale;
+    float baseGap = 4.0f * scale;
+    float rounding = thickness * 0.5f;
 
-    // Horizontal line
-    draw->AddLine(
-        ImVec2(center.x - size, center.y),
-        ImVec2(center.x + size, center.y),
-        color,
-        thickness
-    );
-    // Vertical line
-    draw->AddLine(
-        ImVec2(center.x, center.y - size),
-        ImVec2(center.x, center.y + size),
-        color,
-        thickness
-    );
+    float currentGap = baseGap;
+    if (antidoteScaleTimer > 0.0f && antidoteScaleDir < 0.0f) {
+        currentGap += (12.0f * scale) * antidoteScaleTimer;
+    }
+
+
+    // White: 220 base alpha -> 220 * crosshairAlpha
+    ImU32 colWhite = IM_COL32(255, 255, 255, (int)(220 * crosshairAlpha));
+
+    // Black: 180 base alpha -> 180 * crosshairAlpha
+    ImU32 colBlack = IM_COL32(0, 0, 0, (int)(180 * crosshairAlpha));
+
+    auto DrawCapsule = [&](ImVec2 pMin, ImVec2 pMax) {
+        // Draw Outline
+        draw->AddRectFilled(
+            ImVec2(pMin.x - 1.0f, pMin.y - 1.0f),
+            ImVec2(pMax.x + 1.0f, pMax.y + 1.0f),
+            colBlack,
+            rounding + 1.0f
+        );
+
+        // Draw Core
+        draw->AddRectFilled(pMin, pMax, colWhite, rounding);
+        };
+
+    float halfThick = thickness * 0.5f;
+
+    // Left
+    DrawCapsule(ImVec2(center.x - currentGap - length, center.y - halfThick), ImVec2(center.x - currentGap, center.y + halfThick));
+    // Right
+    DrawCapsule(ImVec2(center.x + currentGap, center.y - halfThick), ImVec2(center.x + currentGap + length, center.y + halfThick));
+    // Top
+    DrawCapsule(ImVec2(center.x - halfThick, center.y - currentGap - length), ImVec2(center.x + halfThick, center.y - currentGap));
+    // Bottom
+    DrawCapsule(ImVec2(center.x - halfThick, center.y + currentGap), ImVec2(center.x + halfThick, center.y + currentGap + length));
 }
+
 
 void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenHeight, float fps, int renderedObjects, int currentScore, int currentHealth, int currentBackpack, int currentAntidotes)
 
@@ -549,6 +572,14 @@ void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenH
 
     // Safety clamp (don't let it get too small on weird windows)
     if (uiScale < 0.5f) uiScale = 0.5f;
+
+    float targetAlpha = questManager.IsAnnouncementActive() ? 0.0f : 1.0f;
+    float dt = ImGui::GetIO().DeltaTime;
+    crosshairAlpha += (targetAlpha - crosshairAlpha) * 5.0f * dt;
+
+    if (crosshairAlpha > 0.01f) {
+        DrawCrosshair(uiScale);
+    }
 
     bool showQuestDetails = ImGui::IsKeyDown(ImGuiKey_Tab);
 
@@ -763,8 +794,6 @@ void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenH
         ImGui::PopStyleColor(5);
     }
 
-    // Draw crosshair
-    DrawCrosshair(screenWidth, screenHeight);
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

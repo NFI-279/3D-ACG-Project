@@ -153,14 +153,18 @@ const float ITEM_COLLECT_RADIUS = 2.0f;
 float maxKillDistance = 10.0f; // maximum distance to kill
 bool IsMonsterTargeted(const Monster& m, const glm::vec3& rayOrigin, const glm::vec3& rayDir, float radius = 0.5f)
 {
-	glm::vec3 target = m.position + glm::vec3(0.0f, 1.5f, 0.0f);
-	glm::vec3 oc = target - rayOrigin;
-	float t = glm::dot(oc, rayDir);          // distance along the ray
-	if (t < 0.0f || t > maxKillDistance)
-		return false;
+	// Shift target UP to chest height (approx 1.2 units up from feet)
+	glm::vec3 monsterCenter = m.position + glm::vec3(0.0f, 1.2f, 0.0f);
+
+	glm::vec3 oc = monsterCenter - rayOrigin;
+	float t = glm::dot(oc, rayDir);
+
+	// If t < 0, monster is behind us
+	if (t < 0) return false;
 
 	glm::vec3 closestPoint = rayOrigin + rayDir * t;
-	float distanceToMonster = glm::length(target - closestPoint);
+	float distanceToMonster = glm::length(monsterCenter - closestPoint);
+
 	return distanceToMonster <= radius;
 }
 
@@ -424,9 +428,10 @@ int main()
 		totalRenderedObjects = 0;
 
 		// Left mouse click
+		// Left mouse click
 		static bool leftClickedLastFrame = false;
 		bool leftClickNow = glfwGetMouseButton(window.getWindow(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
-		bool crosshairClicked = leftClickNow && !leftClickedLastFrame;
+		bool justClicked = leftClickNow && !leftClickedLastFrame;
 		leftClickedLastFrame = leftClickNow;
 
 		float currentFrame = glfwGetTime();
@@ -436,6 +441,29 @@ int main()
 		glm::vec3 rayDir = glm::normalize(camera.getCameraViewDirection());
 		glm::vec3 rayOrigin = camera.getCameraPosition() + rayDir * 0.6f;
 
+		bool shotFired = false;
+		if (!gui.showGUI && justClicked)
+		{
+			if (playerAntidoteCount > 0)
+			{
+				// 1. Deduct Ammo
+				playerAntidoteCount--;
+
+				// 2. Trigger Visuals (Recoil)
+				gui.TriggerShootAnimation();
+
+				// 3. Enable Hit Detection
+				shotFired = true;
+
+				std::cout << "BANG! Ammo left: " << playerAntidoteCount << std::endl;
+			}
+			else
+			{
+				std::cout << "*Click* (Empty)" << std::endl;
+			}
+		}
+
+
 		for (Tree& tree : trees)
 		{
 			if (!tree.alive || !tree.destructible)
@@ -444,7 +472,7 @@ int main()
 			if (tree.hitCooldown > 0.0f)
 				tree.hitCooldown -= deltaTime;
 
-			if (crosshairClicked && IsTreeTargeted(tree, rayOrigin, rayDir))
+			if (justClicked && IsTreeTargeted(tree, rayOrigin, rayDir))
 			{
 				if (tree.hitCooldown <= 0.0f)
 				{
@@ -955,12 +983,18 @@ int main()
 			}
 
 			// Crosshair kill logic
-			if (crosshairClicked && IsMonsterTargeted(m, rayOrigin, rayDir, 1.0f) && distanceToPlayer <= maxKillDistance ) // 1.0f is radius
+			if (shotFired && IsMonsterTargeted(m, rayOrigin, rayDir, 2.0f) && distanceToPlayer <= maxKillDistance)
 			{
 				std::cout << ">>> MONSTER KILLED! <<<" << std::endl;
 				playerScore += 500;
+
+				// Remove monster
 				monsters.erase(monsters.begin() + i);
 				i--;
+
+				// false if not to kill multiple enemies with one bullet
+				shotFired = false;
+
 				continue;
 			}
 

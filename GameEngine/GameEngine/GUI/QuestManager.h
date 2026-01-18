@@ -16,10 +16,12 @@ public:
     void Init(); // Load the 5 story tasks
 
     // Pass the fonts from GUIManager so we can use the specific styles (Bold, Mono, etc.)
-    void Render(ImFont* fontUI, ImFont* fontHeader, ImFont* fontMono, float scale, bool showDetails); 
+    void Render(ImFont* fontUI, ImFont* fontHeader, ImFont* fontMono, float scale, bool showDetails);
 
     // Call this to mark the current task as done and move to the next
     void CompleteCurrentQuest();
+
+    bool IsAnnouncementActive() const { return isAnnouncementActive; }
 
 private:
     std::vector<QuestTask> quests;
