@@ -163,6 +163,12 @@
     <Image Include="Resources\Textures\plane.bmp">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="Resources\Textures\trunk.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="Resources\Textures\leaves.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
   <ItemGroup>
     <Object Include="Resources\Models\sphere.obj" />

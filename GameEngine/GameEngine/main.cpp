@@ -188,6 +188,9 @@ static bool openMenu = false; // To manage the Insert key press
 
 void spawnBuilding(const glm::vec3& origin);
 bool collidesWithBuildings(const glm::vec3& p);
+void spawnTrees(const std::vector<TerrainTile>& terrainTiles, std::vector<Tree>& trees);
+void drawtree3D(Shader& shader, Mesh& trunkMesh, Mesh& leavesMesh, const glm::mat4& projection, const glm::mat4& view,
+		glm::mat4 model, int depth, int segments, float segmentLength, float radius);
 void processKeyboardInput();
 
 int main()
@@ -213,6 +216,9 @@ int main()
 	GLuint tex4 = loadBMP("Resources/Textures/tower.bmp");
 	GLuint tex5 = loadBMP("Resources/Textures/terrain.bmp");
 	GLuint tex6 = loadBMP("Resources/Textures/plane.bmp");
+
+	GLuint trunkTex = loadBMP("Resources/Textures/trunk.bmp");
+	GLuint leavesTex = loadBMP("Resources/Textures/leaves.bmp");
 
 	GLuint bodyTex = loadBMP("Resources/Textures/dirty.bmp");
 	GLuint mountainTex = loadBMP("Resources/Textures/mountain.bmp");
@@ -285,6 +291,16 @@ int main()
 	mountainTextures[0].id = mountainTex;
 	mountainTextures[0].type = "texture_diffuse";
 
+	std::vector<Texture> trunkTextures;
+	trunkTextures.push_back(Texture());
+	trunkTextures[0].id = trunkTex;
+	trunkTextures[0].type = "texture_diffuse";
+
+	std::vector<Texture> leavesTextures;
+	leavesTextures.push_back(Texture());
+	leavesTextures[0].id = leavesTex;
+	leavesTextures[0].type = "texture_diffuse";
+
 	Mesh mesh(vert, ind, textures3);
 
 	// Create Obj files - easier :)
@@ -298,8 +314,10 @@ int main()
 	Mesh terrainMesh = loader.loadObj("Resources/Models/plane.obj", textures5);
 	Mesh syringeMesh = loader.loadObj("Resources/Models/syringe.obj", textures4); // Using tower texture as placeholder
 
-	//Mesh treeMesh = loader.loadObj("Resources/Models/tree1.obj");
 	Mesh bodyBox = loader.loadObj("Resources/Models/cube.obj", bodyTextures);
+
+	Mesh trunkBox = loader.loadObj("Resources/Models/cube.obj", trunkTextures);
+	Mesh leavesBox = loader.loadObj("Resources/Models/sphere.obj", leavesTextures);
 
 	// Create Terrain
 	for (int i = 0; i < 4; i++) {
@@ -333,14 +351,14 @@ int main()
 	cfg.gridResolution = 220;
 	Mesh mountainMesh = generateMountainMesh(cfg, mountainTextures);
 
+	// Spawn Trees
+	spawnTrees(terrainTiles, trees);
+	// Big Tree
+	trees.push_back({ glm::vec3(-176.0f, -21.5f, 137.0f), 5.0f });
+
 	// Creates Buildings
 	for (int i = 0; i < 4; i++)
 		spawnBuilding(origins[i]);
-
-	// Trees
-	trees.push_back({ glm::vec3(10.0f, -19.5f, 10.0f), 1.5f });
-	trees.push_back({ glm::vec3(-20.0f, -19.5f, 5.0f), 2.0f });
-	trees.push_back({ glm::vec3(30.0f, -19.5f, -15.0f), 1.2f });
 
 	static double lastX = window.getWidth() / 2.0;
 	static double lastY = window.getHeight() / 2.0;
@@ -565,7 +583,6 @@ int main()
 		//// End code for the light ////
 
 		shader.use();
-		glUniform1i(glGetUniformLocation(shader.getId(), "isTree"), 0);
 
 		///// Test Obj files for box ////
 
@@ -667,25 +684,14 @@ int main()
 			}
 		}
 
-		for (const Tree& tree : trees)
-		{
-			glUniform1i(glGetUniformLocation(shader.getId(), "isTree"), 1);
-			glUniform1f(glGetUniformLocation(shader.getId(), "trunkHeight"), -17.0f);
-			glUniform3f(glGetUniformLocation(shader.getId(), "trunkColor"), 0.25f, 0.15f, 0.08f);
-			glUniform3f(glGetUniformLocation(shader.getId(), "leavesColor"), 0.12f, 0.35f, 0.18f);
-
-			ModelMatrix = glm::mat4(1.0f);
-			ModelMatrix = glm::translate(ModelMatrix, tree.position);
-			ModelMatrix = glm::scale(ModelMatrix, glm::vec3(tree.scale));
-			MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
-			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
-			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
-
-			//treeMesh.draw(shader);
-			totalRenderedObjects++;
+		for (const Tree& tree : trees) {
+			glm::mat4 treeModel = glm::mat4(1.0f);
+			treeModel = glm::translate(treeModel, tree.position);
+			treeModel = glm::scale(treeModel, glm::vec3(tree.scale));
+			// n determines complexity
+			drawtree3D(shader, trunkBox, leavesBox, ProjectionMatrix, ViewMatrix,
+					treeModel, 4, 5, 0.6f, 0.2f);
 		}
-
-		glUniform1i(glGetUniformLocation(shader.getId(), "isTree"), 0);
 
 		/*/// SIMPLE HUMAN MODEL ///
 
@@ -1117,6 +1123,93 @@ bool collidesWithBuildings(const glm::vec3& p)
 			p.z >= b.minZ && p.z <= b.maxZ)
 			return true;
 	return false;
+}
+
+void spawnTrees(const std::vector<TerrainTile>& terrainTiles,std::vector<Tree>& trees)
+{
+	trees.clear();
+	int tileCounter = 0;
+	for (const TerrainTile& tile : terrainTiles)
+	{
+		tileCounter++;
+		if (tileCounter % 3 != 0)
+			continue;
+		if (rand() % 2 == 0)
+			continue;
+	
+		float offsetX = ((float)rand() / RAND_MAX - 0.5f) * stepTilex;
+		float offsetZ = ((float)rand() / RAND_MAX - 0.5f) * stepTilez;
+
+		float roadHalfWidth = 5.0f;
+		if (fabs(offsetX) < roadHalfWidth || fabs(offsetZ) < roadHalfWidth)
+			continue;
+
+		Tree t;
+		t.position.x = tile.position.x + offsetX;
+		t.position.z = tile.position.z + offsetZ;
+		t.position.y = BASE_HEIGHT - 1.5f;
+		t.scale = 0.8f + ((float)rand() / RAND_MAX) * 0.6f;
+
+		trees.push_back(t);
+	}
+}
+
+
+void drawtree3D(Shader& shader, Mesh& trunkMesh, Mesh& leavesMesh, const glm::mat4& projection, const glm::mat4& view,
+			glm::mat4 model, int depth, int segments, float segmentLength, float radius)
+{
+	GLuint mvpLoc = glGetUniformLocation(shader.getId(), "MVP");
+	GLuint modelLoc = glGetUniformLocation(shader.getId(), "model");
+
+	// end case
+	if (depth <= 1 || segments <= 1 || radius < 0.02f)
+	{
+		for (int i = 0; i < segments; i++)
+		{
+			glm::mat4 leaf = model;
+			leaf = glm::translate(leaf, glm::vec3(0.0f, segmentLength * 0.5f, 0.0f));
+			leaf = glm::scale(leaf, glm::vec3(radius, segmentLength/5, radius));
+			glm::mat4 mvp = projection * view * leaf;
+			glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, &mvp[0][0]);
+			glUniformMatrix4fv(modelLoc, 1, GL_FALSE, &leaf[0][0]);
+
+			leavesMesh.draw(shader);
+
+			model = glm::translate(model, glm::vec3(0.0f, segmentLength, 0.0f));
+		}
+		return;
+	}
+
+	// draw trunk segments
+	for (int i = 0; i < segments; i++)
+	{
+		glm::mat4 segment = model;
+		segment = glm::translate(segment, glm::vec3(0.0f, segmentLength * 0.5f, 0.0f));
+		segment = glm::scale(segment, glm::vec3(radius, segmentLength, radius));
+		glm::mat4 mvp = projection * view * segment;
+		glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, &mvp[0][0]);
+		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, &segment[0][0]);
+
+		trunkMesh.draw(shader);
+
+		model = glm::translate(model, glm::vec3(0.0f, segmentLength, 0.0f));
+	}
+
+	// branch
+	int branchCount = glm::clamp(depth + 1, 2, 5);
+	float angleStep = 360.0f / branchCount;
+	float tiltAngle = 25.0f + depth * 5.0f;
+
+	for (int i = 0; i < branchCount; i++)
+	{
+		glm::mat4 b = model;
+
+		b = glm::rotate(b, (i * angleStep), glm::vec3(0, 1, 0));
+		b = glm::rotate(b, (tiltAngle), glm::vec3(1, 0, 0));
+
+		drawtree3D(shader, trunkMesh, leavesMesh, projection, view,
+				b, depth - 1, segments - 1, segmentLength * 0.9f, radius * 0.7f);
+	}
 }
 
 void processKeyboardInput()
