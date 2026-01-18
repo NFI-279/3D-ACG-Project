@@ -135,16 +135,27 @@ struct Monster {
 const float minSpawnDist = 5.0f;
 std::vector<Monster> monsters;
 
-// --- SYRINGE SYSTEM ---
-struct GarbageItem {
+// Bullet
+struct Bullet {
 	glm::vec3 position;
 	float rotationY;
 };
+std::vector<Bullet> bullets;
+float bulletSpawnTimer = 0.0f;
+const float BULLET_SPAWN_INTERVAL = 5.0f; 
+const float BULLET_COLLECT_RADIUS = 2.0f;
 
-std::vector<GarbageItem> garbageItems;
+// Syringe
+struct Syringe {
+	glm::vec3 position;
+	float rotationY;
+};
+std::vector<Syringe> syringes;
 
 int playerBackpackCount = 0;   // Current trash (0 to 5)
 int playerAntidoteCount = 0;
+int playerBulletCount = 0;
+bool hasRecipe = false;
 const int MAX_BACKPACK = 5;
 
 float itemSpawnTimer = 0.0f;
@@ -259,6 +270,8 @@ int main()
 
 	GLuint recipeTex = loadBMP("Resources/Textures/recipe.bmp");
 
+	GLuint bulletTex = loadBMP("Resources/Textures/rock.bmp"); // TODO Change to bullet.bmp
+
 	glEnable(GL_DEPTH_TEST);
 
 	//Test custom mesh loading
@@ -342,6 +355,11 @@ int main()
 	recipeTexture[0].id = recipeTex;
 	recipeTexture[0].type = "texture_diffuse";
 
+	std::vector<Texture> bulletTexture;
+	bulletTexture.push_back(Texture());
+	bulletTexture[0].id = bulletTex;
+	bulletTexture[0].type = "texture_diffuse";
+
 	Mesh mesh(vert, ind, textures3);
 
 	// Create Obj files - easier :)
@@ -353,7 +371,6 @@ int main()
 	//Mesh player = loader.loadObj("Resources/Models/player.obj", textures2);
 	Mesh wallMesh = loader.loadObj("Resources/Models/plane.obj", textures4);
 	Mesh terrainMesh = loader.loadObj("Resources/Models/plane.obj", textures5);
-	Mesh syringeMesh = loader.loadObj("Resources/Models/syringe.obj", textures4); // Using tower texture as placeholder
 
 	Mesh bodyBox = loader.loadObj("Resources/Models/cube.obj", bodyTextures);
 
@@ -361,6 +378,9 @@ int main()
 	Mesh leavesBox = loader.loadObj("Resources/Models/sphere.obj", leavesTextures);
 
 	Mesh recipeMesh = loader.loadObj("Resources/Models/plane.obj", recipeTexture);
+
+	Mesh bulletMesh = loader.loadObj("Resources/Models/sphere.obj", bulletTexture); // TODO Replace bullet.obj
+	Mesh syringeMesh = loader.loadObj("Resources/Models/syringe.obj", textures4); // Using tower texture as placeholder
 
 	// Create Terrain
 	for (int i = 0; i < 4; i++) {
@@ -445,10 +465,10 @@ int main()
 		bool shotFired = false;
 		if (!gui.showGUI && justClicked)
 		{
-			if (playerAntidoteCount > 0)
+			if (playerBulletCount > 0)
 			{
 				// 1. Deduct Ammo
-				playerAntidoteCount--;
+				playerBulletCount--;
 
 				// 2. Trigger Visuals (Recoil)
 				gui.TriggerShootAnimation();
@@ -456,7 +476,7 @@ int main()
 				// 3. Enable Hit Detection
 				shotFired = true;
 
-				std::cout << "BANG! Ammo left: " << playerAntidoteCount << std::endl;
+				std::cout << "BANG! Ammo left: " << playerBulletCount << std::endl;
 			}
 			else
 			{
@@ -497,44 +517,76 @@ int main()
 		if (recipeNote.visible && glm::distance(playerPos, recipeNote.position) < 2.0f)
 		{
 			recipeNote.visible = false;
+			hasRecipe = true;
 			std::cout << "You found a recipe!" << std::endl;
 		}
 
-		// GARBAGE ITEM SPAWNING AND COLLECTION
-		itemSpawnTimer += deltaTime;
-		if (itemSpawnTimer >= ITEM_SPAWN_INTERVAL) {
-			itemSpawnTimer = 0.0f;
-			for(int i=0; i<5; i++) {
-                float randomX = townMinX + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (townMaxX - townMinX)));
-                float randomZ = townMinZ + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (townMaxZ - townMinZ)));
-				garbageItems.push_back({ glm::vec3(randomX, -19.0f, randomZ), 0.0f });
-            }
-            std::cout << "10 Syringes spawned!" << std::endl;
-		}
-
-		for (auto it = garbageItems.begin(); it != garbageItems.end(); ) {
-			float dist = glm::distance(playerPos, it->position);
-			if (dist < ITEM_COLLECT_RADIUS) {
-				playerBackpackCount++;
-
-				playerScore += 150;
-
-				if (playerHP < maxPlayerHP) // Heal player on collection
-				{
-					playerHP += 5.0f;
-					if (playerHP > maxPlayerHP) playerHP = maxPlayerHP; // Cap at 100
-
-					std::cout << "Trash collected! Healed +5 HP. Current: " << (int)playerHP << std::endl;
+		if (hasRecipe) {
+			// GARBAGE ITEM SPAWNING AND COLLECTION
+			itemSpawnTimer += deltaTime;
+			if (itemSpawnTimer >= ITEM_SPAWN_INTERVAL) {
+				itemSpawnTimer = 0.0f;
+				for (int i = 0; i < 5; i++) {
+					float randomX = townMinX + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (townMaxX - townMinX)));
+					float randomZ = townMinZ + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (townMaxZ - townMinZ)));
+					syringes.push_back({ glm::vec3(randomX, -19.0f, randomZ), 0.0f });
 				}
+				std::cout << "10 Syringes spawned!" << std::endl;
+			}
 
-				if (playerBackpackCount >= MAX_BACKPACK) {
+			for (auto it = syringes.begin(); it != syringes.end(); ) {
+				float dist = glm::distance(playerPos, it->position);
+				if (dist < ITEM_COLLECT_RADIUS) {
+					playerBackpackCount++;
+
+					playerScore += 150;
+
+					if (playerHP < maxPlayerHP) // Heal player on collection
+					{
+						playerHP += 5.0f;
+						if (playerHP > maxPlayerHP) playerHP = maxPlayerHP; // Cap at 100
+
+						std::cout << "Trash collected! Healed +5 HP. Current: " << (int)playerHP << std::endl;
+					}
+
+					if (playerBackpackCount >= MAX_BACKPACK) {
 						playerBackpackCount = 0; // Reset Backpack
 						playerAntidoteCount++;   // Gain 1 Ammo
 						playerScore += 350; // Bonus Score for crafting
 						std::cout << ">>> CRAFTED ANTIDOTE! Total: " << playerAntidoteCount << " <<<" << std::endl;
+					}
+					it = syringes.erase(it);
+				} // TODO : Edge case : Backpack is Full (5/5) AND we couldn't craft (Ammo Full)
+				else {
+					it->rotationY += 50.0f * deltaTime;
+					++it;
 				}
-				it = garbageItems.erase(it);
-			} // TODO : Edge case : Backpack is Full (5/5) AND we couldn't craft (Ammo Full)
+			}
+		}else
+			itemSpawnTimer = 0.0f;
+
+		bulletSpawnTimer += deltaTime;
+		if (bulletSpawnTimer >= BULLET_SPAWN_INTERVAL) {
+			bulletSpawnTimer = 0.0f;
+			for (int i = 0; i < 10; i++) {
+				float randomX = townMinX + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (townMaxX - townMinX)));
+				float randomZ = townMinZ + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (townMaxZ - townMinZ)));
+				bullets.push_back({glm::vec3(randomX, -19.0f, randomZ), 0.0f});
+			}
+			std::cout << "Bullets spawned!" << std::endl;
+		}
+
+		for (auto it = bullets.begin(); it != bullets.end(); ) {
+			float dist = glm::distance(playerPos, it->position);
+			if (dist < BULLET_COLLECT_RADIUS) {
+
+				playerBulletCount += 1;
+				playerScore += 200;
+
+				std::cout << "Bullet collected! Ammo: " << playerBulletCount << std::endl;
+
+				it = bullets.erase(it);
+			}
 			else {
 				it->rotationY += 50.0f * deltaTime;
 				++it;
@@ -1125,7 +1177,7 @@ int main()
 
 		// --- RENDER SYRINGES ---
 		shader.use();
-		for (const auto& s : garbageItems) {
+		for (const auto& s : syringes) {
 			glm::mat4 model = glm::mat4(1.0f);
 			model = glm::translate(model, s.position);
 			model = glm::rotate(model, glm::radians(s.rotationY), glm::vec3(0, 1, 0));
@@ -1137,6 +1189,20 @@ int main()
 			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &model[0][0]);
 
 			syringeMesh.draw(shader); // TODO : Replace with syringe mesh
+			totalRenderedObjects++;
+		}
+
+		for (const auto& b : bullets) {
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, b.position);
+			model = glm::rotate(model, glm::radians(b.rotationY), glm::vec3(0, 1, 0));
+			model = glm::scale(model, glm::vec3(0.08f));
+
+			glm::mat4 mvp = ProjectionMatrix * ViewMatrix * model;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &mvp[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &model[0][0]);
+
+			bulletMesh.draw(shader);
 			totalRenderedObjects++;
 		}
 
