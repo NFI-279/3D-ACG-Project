@@ -17,9 +17,6 @@ Win32/
 *.pdb
 *.idb
 
-# Object files
-*.obj
-
 # Logs / temp files
 *.log
 *.tlog/

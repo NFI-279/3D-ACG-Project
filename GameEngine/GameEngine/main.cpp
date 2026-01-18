@@ -132,8 +132,9 @@ struct Monster {
 	float yaw;
 	float walkCycle = 0.0f; // accumulates movement
 };
-
+const float minSpawnDist = 5.0f;
 std::vector<Monster> monsters;
+
 // --- SYRINGE SYSTEM ---
 struct GarbageItem {
 	glm::vec3 position;
@@ -356,7 +357,7 @@ int main()
 
 	Mesh bodyBox = loader.loadObj("Resources/Models/cube.obj", bodyTextures);
 
-	Mesh trunkBox = loader.loadObj("Resources/Models/cube.obj", trunkTextures);
+	Mesh trunkBox = loader.loadObj("Resources/Models/cubev2.obj", trunkTextures);
 	Mesh leavesBox = loader.loadObj("Resources/Models/sphere.obj", leavesTextures);
 
 	Mesh recipeMesh = loader.loadObj("Resources/Models/plane.obj", recipeTexture);
@@ -394,7 +395,7 @@ int main()
 	Mesh mountainMesh = generateMountainMesh(cfg, mountainTextures);
 
 	// Spawn Trees
-	spawnTrees(terrainTiles, trees);
+	//spawnTrees(terrainTiles, trees);
 	// Big Tree
 	Tree bigTree;
 	bigTree.position = glm::vec3(-176.0f, -21.5f, 137.0f);
@@ -612,11 +613,6 @@ int main()
 			playerYaw = glm::degrees(atan2(moveDir.z, moveDir.x));
 			walkCycle += glm::length(moveDir) * velocity * walkSpeedFactor;
 		}
-		//}
-		// 
-		// Random monster spawning parameters
-		//float spawnDistance = 20.0f; // min distance from player
-		//float spawnChance = 0.01f;   // chance per frame to spawn a monster
 
 		// Update the spawn timer
 		timeSinceLastSpawn += deltaTime;
@@ -638,6 +634,11 @@ int main()
 					glm::clamp(playerPos.z + offsetZ, townMinZ, townMaxZ)
 				);
 				m.bodyScale = 1.0f;
+
+				float distToPlayer = glm::length(m.position - playerPos);
+				if (distToPlayer < minSpawnDist)
+					continue;
+
 				if (!collidesWithBuildings(m.position))
 				{
 					monsters.push_back(m);
@@ -1324,14 +1325,13 @@ void drawtree3D(Shader& shader, Mesh& trunkMesh, Mesh& leavesMesh, const glm::ma
 	}
 
 	// branch
-	int branchCount = glm::clamp(depth + 1, 2, 5);
+	int branchCount = glm::clamp(depth + 1, 2, 4);
 	float angleStep = 360.0f / branchCount;
 	float tiltAngle = 25.0f + depth * 5.0f;
 
 	for (int i = 0; i < branchCount; i++)
 	{
 		glm::mat4 b = model;
-
 		b = glm::rotate(b, (i * angleStep), glm::vec3(0, 1, 0));
 		b = glm::rotate(b, (tiltAngle), glm::vec3(1, 0, 0));
 
@@ -1347,16 +1347,17 @@ bool collidesWithTrees(const glm::vec3& p)
 		if (!tree.alive)
 			continue;
 
-		float radius = 1.6f * tree.scale;
-		float dist = glm::length(p - tree.position);
-
-		if (tree.destructible) {
-			radius = tree.scale * 1.1;
-			dist = glm::length(p - tree.position);
-		}
+		float halfSize = tree.destructible ? 1.5f : 1.0f;
+		float xmin = tree.position.x - halfSize;
+		float xmax = tree.position.x + halfSize;
+		float zmin = tree.position.z - halfSize;
+		float zmax = tree.position.z + halfSize;
 		
-		if (dist < radius)
+		if (p.x >= xmin && p.x <= xmax &&
+			p.z >= zmin && p.z <= zmax)
+		{
 			return true;
+		}
 	}
 	return false;
 }
