@@ -109,30 +109,53 @@ Camera camera;
 glm::vec3 lightColor = glm::vec3(1.0f);
 glm::vec3 lightPos = glm::vec3(-180.0f, 100.0f, -200.0f);
 
-// --- PLAYER HEALTH SYSTEM ---
-float playerHP = 100.0f;
-float maxPlayerHP = 100.0f;
-float damageRadius = 1.5f;     // Distance to take damage
-float damageFlashTimer = 0.0f; // For visual feedback
-// ----------------------------
-int playerScore = 0;
-
-// Player
-glm::vec3 playerPos = glm::vec3(1.0f, -19.0f, 1.0f);
-float playerYaw = 0.0f; // rotation Y axis
-// Legs animation
-float walkCycle = 0.0f; // accumulates movement for leg animation
-float walkSpeedFactor = 5.0f; // controls leg swing speed
-float walkAmplitude = 0.2f;   // leg swing amplitude
+struct Player {
+	//Transform
+	glm::vec3 position = glm::vec3(1.0f, -19.0f, 1.0f);
+	float yaw = 0.0f;
+	// Movement
+	float moveSpeed = 20.0f;
+	float rotationSpeed = 90.0f;
+	// Health
+	float hp = 100.0f;
+	float maxHp = 100.0f;
+	float damageRadius = 1.5f;
+	float damageFlashTimer = 0.0f;
+	// Combat
+	int bulletCount = 0;
+	// float fireCooldown = 0.0f;
+	float maxHitDistance = 10.0f;
+	// Inventory
+	int backpackCount = 0;
+	int maxBackpack = 5;
+	int antidoteCount = 0;
+	bool hasRecipe = false;
+	// Progress
+	int score = 0;
+	// Animation
+	float walkCycle = 0.0f;
+	float walkSpeedFactor = 5.0f;
+	float walkAmplitude = 0.2f;
+};
+Player player;
 
 // Monsters
 struct Monster {
+	// Transform
 	glm::vec3 position;
+	float yaw = 0.0f;
+	// Movement
+	float speed = 5.0f;
+	float chaseDistance = 10.0f;
+	float damageRadius = 1.5f;
+	// Scale
 	float bodyScale;
-	float yaw;
+	// Animation
 	float walkCycle = 0.0f; // accumulates movement
 };
-const float minSpawnDist = 5.0f;
+float spawnInterval = 3.0f;       // seconds between monster spawns
+float timeSinceLastSpawn = 0.0f;  // accumulates time
+float spawnDistance = 5.0f;      // min distance from player
 std::vector<Monster> monsters;
 
 // Bullet
@@ -152,17 +175,10 @@ struct Syringe {
 };
 std::vector<Syringe> syringes;
 
-int playerBackpackCount = 0;   // Current trash (0 to 5)
-int playerAntidoteCount = 0;
-int playerBulletCount = 0;
-bool hasRecipe = false;
-const int MAX_BACKPACK = 5;
-
 float itemSpawnTimer = 0.0f;
 const float ITEM_SPAWN_INTERVAL = 5.0f; // Spawns faster now
 const float ITEM_COLLECT_RADIUS = 2.0f;
 
-float maxKillDistance = 10.0f; // maximum distance to kill
 bool IsMonsterTargeted(const Monster& m, const glm::vec3& rayOrigin, const glm::vec3& rayDir, float radius = 0.5f)
 {
 	// Shift target UP to chest height (approx 1.2 units up from feet)
@@ -171,8 +187,8 @@ bool IsMonsterTargeted(const Monster& m, const glm::vec3& rayOrigin, const glm::
 	glm::vec3 oc = monsterCenter - rayOrigin;
 	float t = glm::dot(oc, rayDir);
 
-	// If t < 0, monster is behind us
-	if (t < 0) return false;
+	if (t < 0.0f || t > player.maxHitDistance)
+		return false;
 
 	glm::vec3 closestPoint = rayOrigin + rayDir * t;
 	float distanceToMonster = glm::length(monsterCenter - closestPoint);
@@ -182,11 +198,10 @@ bool IsMonsterTargeted(const Monster& m, const glm::vec3& rayOrigin, const glm::
 
 bool IsTreeTargeted(const Tree& tree, const glm::vec3& rayOrigin, const glm::vec3& rayDir, float radius = 1.1f)
 {
-	float maxDistance = 10.0f;
 	glm::vec3 target = tree.position + glm::vec3(0.0f, tree.scale * 1.2f, 0.0f);
 	glm::vec3 oc = target - rayOrigin;
 	float t = glm::dot(oc, rayDir);
-	if (t < 0.0f || t > maxDistance)
+	if (t < 0.0f || t > player.maxHitDistance)
 		return false;
 
 	glm::vec3 closestPoint = rayOrigin + rayDir * t;
@@ -194,15 +209,7 @@ bool IsTreeTargeted(const Tree& tree, const glm::vec3& rayOrigin, const glm::vec
 	return distanceToTree <= radius * tree.scale;
 }
 
-float monsterSpeed = 5.0f;
-float chaseDistance = 10.0f; // maximum distance to start chasing
-float spawnInterval = 3.0f;       // seconds between monster spawns
-float timeSinceLastSpawn = 0.0f;  // accumulates time
-float spawnDistance = 10.0f;      // min distance from player
-
 // Camera
-float playerSpeed = 20.0f;
-float rotationSpeed = 90.0f;
 float camYaw = -90.0f;
 float camPitch = -20.0f;
 float mouseSensitivity = 0.1f;
@@ -465,10 +472,10 @@ int main()
 		bool shotFired = false;
 		if (!gui.showGUI && justClicked)
 		{
-			if (playerBulletCount > 0)
+			if (player.bulletCount > 0)
 			{
 				// 1. Deduct Ammo
-				playerBulletCount--;
+				player.bulletCount--;
 
 				// 2. Trigger Visuals (Recoil)
 				gui.TriggerShootAnimation();
@@ -476,7 +483,7 @@ int main()
 				// 3. Enable Hit Detection
 				shotFired = true;
 
-				std::cout << "BANG! Ammo left: " << playerBulletCount << std::endl;
+				std::cout << "BANG! Ammo left: " << player.bulletCount << std::endl;
 			}
 			else
 			{
@@ -514,14 +521,14 @@ int main()
 			}
 		}
 
-		if (recipeNote.visible && glm::distance(playerPos, recipeNote.position) < 2.0f)
+		if (recipeNote.visible && glm::distance(player.position, recipeNote.position) < 2.0f)
 		{
 			recipeNote.visible = false;
-			hasRecipe = true;
+			player.hasRecipe = true;
 			std::cout << "You found a recipe!" << std::endl;
 		}
 
-		if (hasRecipe) {
+		if (player.hasRecipe) {
 			// GARBAGE ITEM SPAWNING AND COLLECTION
 			itemSpawnTimer += deltaTime;
 			if (itemSpawnTimer >= ITEM_SPAWN_INTERVAL) {
@@ -535,25 +542,26 @@ int main()
 			}
 
 			for (auto it = syringes.begin(); it != syringes.end(); ) {
-				float dist = glm::distance(playerPos, it->position);
+				float dist = glm::distance(player.position, it->position);
 				if (dist < ITEM_COLLECT_RADIUS) {
-					playerBackpackCount++;
+					player.backpackCount++;
 
-					playerScore += 150;
+					player.score += 150;
 
-					if (playerHP < maxPlayerHP) // Heal player on collection
+					if (player.hp < player.maxHp) // Heal player on collection
 					{
-						playerHP += 5.0f;
-						if (playerHP > maxPlayerHP) playerHP = maxPlayerHP; // Cap at 100
+						player.hp += 5.0f;
+						if (player.hp > player.maxHp) 
+							player.hp = player.maxHp; // Cap at 100
 
-						std::cout << "Trash collected! Healed +5 HP. Current: " << (int)playerHP << std::endl;
+						std::cout << "Trash collected! Healed +5 HP. Current: " << (int)player.hp << std::endl;
 					}
 
-					if (playerBackpackCount >= MAX_BACKPACK) {
-						playerBackpackCount = 0; // Reset Backpack
-						playerAntidoteCount++;   // Gain 1 Ammo
-						playerScore += 350; // Bonus Score for crafting
-						std::cout << ">>> CRAFTED ANTIDOTE! Total: " << playerAntidoteCount << " <<<" << std::endl;
+					if (player.backpackCount >= player.maxBackpack) {
+						player.backpackCount = 0; // Reset Backpack
+						player.antidoteCount++;   // Gain 1 Ammo
+						player.score += 350; // Bonus Score for crafting
+						std::cout << ">>> CRAFTED ANTIDOTE! Total: " << player.antidoteCount << " <<<" << std::endl;
 					}
 					it = syringes.erase(it);
 				} // TODO : Edge case : Backpack is Full (5/5) AND we couldn't craft (Ammo Full)
@@ -577,13 +585,13 @@ int main()
 		}
 
 		for (auto it = bullets.begin(); it != bullets.end(); ) {
-			float dist = glm::distance(playerPos, it->position);
+			float dist = glm::distance(player.position, it->position);
 			if (dist < BULLET_COLLECT_RADIUS) {
 
-				playerBulletCount += 1;
-				playerScore += 200;
+				player.bulletCount += 1;
+				player.score += 200;
 
-				std::cout << "Bullet collected! Ammo: " << playerBulletCount << std::endl;
+				std::cout << "Bullet collected! Ammo: " << player.bulletCount << std::endl;
 
 				it = bullets.erase(it);
 			}
@@ -607,8 +615,8 @@ int main()
 			fpsAccumulator = 0.0f;
 		}
 
-		float velocity = playerSpeed * deltaTime;
-		float rotVelocity = rotationSpeed * deltaTime;
+		float velocity = player.moveSpeed * deltaTime;
+		// float rotVelocity = player.rotationSpeed * deltaTime;
 
 		// Mouse Input
 		double xpos, ypos;
@@ -652,18 +660,18 @@ int main()
 		{
 			moveDir = glm::normalize(moveDir);
 
-			glm::vec3 nextPos = playerPos;
+			glm::vec3 nextPos = player.position;
 			nextPos.x += moveDir.x * velocity; // X
 			if (!collidesWithBuildings(nextPos) && !collidesWithTrees(nextPos))
-				playerPos.x = nextPos.x;
+				player.position.x = nextPos.x;
 
-			nextPos = playerPos;
+			nextPos = player.position;
 			nextPos.z += moveDir.z * velocity; // Z
 			if (!collidesWithBuildings(nextPos) && !collidesWithTrees(nextPos))
-				playerPos.z = nextPos.z;
+				player.position.z = nextPos.z;
 
-			playerYaw = glm::degrees(atan2(moveDir.z, moveDir.x));
-			walkCycle += glm::length(moveDir) * velocity * walkSpeedFactor;
+			player.yaw = glm::degrees(atan2(moveDir.z, moveDir.x));
+			player.walkCycle += glm::length(moveDir) * velocity * player.walkSpeedFactor;
 		}
 
 		// Update the spawn timer
@@ -681,14 +689,14 @@ int main()
 				float offsetZ = ((float)rand() / RAND_MAX - 0.5f) * spawnDistance * 2.0f;
 
 				m.position = glm::vec3(
-					glm::clamp(playerPos.x + offsetX, townMinX, townMaxX),
-					playerPos.y,
-					glm::clamp(playerPos.z + offsetZ, townMinZ, townMaxZ)
+					glm::clamp(player.position.x + offsetX, townMinX, townMaxX),
+					player.position.y,
+					glm::clamp(player.position.z + offsetZ, townMinZ, townMaxZ)
 				);
 				m.bodyScale = 1.0f;
 
-				float distToPlayer = glm::length(m.position - playerPos);
-				if (distToPlayer < minSpawnDist)
+				float distToPlayer = glm::length(m.position - player.position);
+				if (distToPlayer < spawnDistance)
 					continue;
 
 				if (!collidesWithBuildings(m.position))
@@ -700,9 +708,9 @@ int main()
 		}
 
 		// Ground 
-		playerPos.x = glm::clamp(playerPos.x, mapMinX, mapMaxX);
-		playerPos.y = BASE_HEIGHT + 0.1f;
-		playerPos.z = glm::clamp(playerPos.z, mapMinZ, mapMaxZ);
+		player.position.x = glm::clamp(player.position.x, mapMinX, mapMaxX);
+		player.position.y = BASE_HEIGHT + 0.1f;
+		player.position.z = glm::clamp(player.position.z, mapMinZ, mapMaxZ);
 
 		/*// Camera orbit
 		glm::vec3 offset;
@@ -722,7 +730,7 @@ int main()
 		front = glm::normalize(front);
 
 		glm::vec3 eyeOffset = glm::vec3(0.0f, 1.4f, 0.0f);
-		camera.setCameraPosition(playerPos + eyeOffset);
+		camera.setCameraPosition(player.position + eyeOffset);
 		camera.setCameraViewDirection(front);
 
 		//// Code for the light ////
@@ -751,10 +759,10 @@ int main()
 		GLuint MatrixID2 = glGetUniformLocation(shader.getId(), "MVP");
 		GLuint ModelMatrixID = glGetUniformLocation(shader.getId(), "model");
 		ModelMatrix = glm::mat4(1.0f);
-		ModelMatrix = glm::translate(ModelMatrix, playerPos);
+		ModelMatrix = glm::translate(ModelMatrix, player.position);
 		ModelMatrix = glm::rotate(
 			ModelMatrix,
-			glm::radians(playerYaw),
+			glm::radians(player.yaw),
 			glm::vec3(0.0f, 1.0f, 0.0f)
 		);
 		/*ModelMatrix = glm::scale(
@@ -1001,25 +1009,25 @@ int main()
 		for (size_t i = 0; i < monsters.size(); i++)
 		{
 			Monster& m = monsters[i];
-			glm::vec3 dir = playerPos - m.position;
+			glm::vec3 dir = player.position - m.position;
 			float distance = glm::length(dir);
-			float distanceToPlayer = glm::distance(playerPos, m.position);
+			float distanceToPlayer = glm::distance(player.position, m.position);
 
 			// --- DAMAGE LOGIC START ---
-			if (distance < damageRadius) {
+			if (distance < player.damageRadius) {
 				// 10% Damage per second
-				float damage = (maxPlayerHP * 0.10f) * deltaTime;
-				playerHP -= damage;
+				float damage = (player.maxHp * 0.10f) * deltaTime;
+				player.hp -= damage;
 
 				// Trigger Red Flash
-				damageFlashTimer = 0.2f;
+				player.damageFlashTimer = 0.2f;
 			}
 			// --- DAMAGE LOGIC END ---
 
 
-			if (distance < chaseDistance && distance > 0.01f) {
+			if (distance < m.chaseDistance && distance > 0.01f) {
 				dir = glm::normalize(dir);
-				float moveStep = monsterSpeed * deltaTime;
+				float moveStep = m.speed * deltaTime;
 
 				glm::vec3 nextPos = m.position; // X
 				nextPos.x += dir.x * moveStep;
@@ -1032,14 +1040,14 @@ int main()
 					m.position.z = nextPos.z;
 
 				m.yaw = glm::degrees(atan2(dir.z, dir.x)) + 90.0f;
-				m.walkCycle += moveStep * walkSpeedFactor;
+				m.walkCycle += moveStep * player.walkSpeedFactor;
 			}
 
 			// Crosshair kill logic
-			if (shotFired && IsMonsterTargeted(m, rayOrigin, rayDir, 2.0f) && distanceToPlayer <= maxKillDistance)
+			if (shotFired && IsMonsterTargeted(m, rayOrigin, rayDir, 2.0f) && distanceToPlayer <= player.maxHitDistance)
 			{
 				std::cout << ">>> MONSTER KILLED! <<<" << std::endl;
-				playerScore += 500;
+				player.score += 500;
 
 				// Remove monster
 				monsters.erase(monsters.begin() + i);
@@ -1149,8 +1157,8 @@ int main()
 		// --- HEALTH & VISUALS UPDATE ---
 
 		// 1. Red Flash Effect
-		if (damageFlashTimer > 0.0f) {
-			damageFlashTimer -= deltaTime;
+		if (player.damageFlashTimer > 0.0f) {
+			player.damageFlashTimer -= deltaTime;
 			gui.changeBackground = true; // Turn background RED
 		}
 		else {
@@ -1158,19 +1166,19 @@ int main()
 		}
 
 		// 2. Death / Respawn Check
-		if (playerHP <= 0.0f) {
+		if (player.hp <= 0.0f) {
 			std::cout << ">>> YOU DIED! Respawning... <<<" << std::endl;
-			playerHP = maxPlayerHP;
-			playerScore = 0; // Reset Score
-			playerBackpackCount = 0; // Clear Backpack
-			playerPos = glm::vec3(1.0f, -19.0f, 1.0f); // Reset Position
+			player.hp = player.maxHp;
+			player.score = 0; // Reset Score
+			player.backpackCount = 0; // Clear Backpack
+			player.position = glm::vec3(1.0f, -19.0f, 1.0f); // Reset Position
 			monsters.clear(); // Clear enemies
 		}
 
 		// 3. Debug Print (Every 1 sec approx, or use ImGui text if available)
 		// We will just print if damaged to avoid spam
-		if (damageFlashTimer > 0.15f) { // Only print on initial hit frame approx
-			std::cout << "HP: " << (int)playerHP << " / " << (int)maxPlayerHP << std::endl;
+		if (player.damageFlashTimer > 0.15f) { // Only print on initial hit frame approx
+			std::cout << "HP: " << (int)player.hp << " / " << (int)player.maxHp << std::endl;
 		}
 		// -------------------------------
 
@@ -1220,7 +1228,7 @@ int main()
 			recipeMesh.draw(shader);
 		}
 
-		gui.Render(playerPos, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects, playerScore, (int)playerHP, playerBackpackCount, playerAntidoteCount);
+		gui.Render(player.position, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects, player.score, (int)player.hp, player.backpackCount, player.antidoteCount);
 
 		// TEMPORARY DEBUG KEY
 		static bool fPressed = false;
