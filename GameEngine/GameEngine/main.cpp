@@ -86,6 +86,10 @@ const float PADDING = 220.0f;
 struct Tree {
 	glm::vec3 position;
 	float scale;
+	int hitCount = 0;
+	float hitCooldown = 0.0f;
+	bool alive = true;
+	bool destructible = false;
 };
 std::vector<Tree> trees;
 
@@ -140,15 +144,33 @@ float itemSpawnTimer = 0.0f;
 const float ITEM_SPAWN_INTERVAL = 5.0f; // Spawns faster now
 const float ITEM_COLLECT_RADIUS = 2.0f;
 
+float maxKillDistance = 10.0f; // maximum distance to kill
 bool IsMonsterTargeted(const Monster& m, const glm::vec3& rayOrigin, const glm::vec3& rayDir, float radius = 0.5f)
 {
-	glm::vec3 oc = m.position - rayOrigin;
+	glm::vec3 target = m.position + glm::vec3(0.0f, 1.5f, 0.0f);
+	glm::vec3 oc = target - rayOrigin;
 	float t = glm::dot(oc, rayDir);          // distance along the ray
+	if (t < 0.0f || t > maxKillDistance)
+		return false;
+
 	glm::vec3 closestPoint = rayOrigin + rayDir * t;
-	float distanceToMonster = glm::length(m.position - closestPoint);
+	float distanceToMonster = glm::length(target - closestPoint);
 	return distanceToMonster <= radius;
 }
-float maxKillDistance = 8.0f; // maximum distance to kill
+
+bool IsTreeTargeted(const Tree& tree, const glm::vec3& rayOrigin, const glm::vec3& rayDir, float radius = 1.1f)
+{
+	float maxDistance = 5.0f;
+	glm::vec3 target = tree.position + glm::vec3(0.0f, tree.scale * 1.2f, 0.0f);
+	glm::vec3 oc = target - rayOrigin;
+	float t = glm::dot(oc, rayDir);
+	if (t < 0.0f || t > maxDistance)
+		return false;
+
+	glm::vec3 closestPoint = rayOrigin + rayDir * t;
+	float distanceToTree = glm::length(target - closestPoint);
+	return distanceToTree <= radius * tree.scale;
+}
 
 float monsterSpeed = 5.0f;
 float chaseDistance = 10.0f; // maximum distance to start chasing
@@ -191,6 +213,7 @@ bool collidesWithBuildings(const glm::vec3& p);
 void spawnTrees(const std::vector<TerrainTile>& terrainTiles, std::vector<Tree>& trees);
 void drawtree3D(Shader& shader, Mesh& trunkMesh, Mesh& leavesMesh, const glm::mat4& projection, const glm::mat4& view,
 		glm::mat4 model, int depth, int segments, float segmentLength, float radius);
+bool collidesWithTrees(const glm::vec3& p);
 void processKeyboardInput();
 
 int main()
@@ -354,7 +377,11 @@ int main()
 	// Spawn Trees
 	spawnTrees(terrainTiles, trees);
 	// Big Tree
-	trees.push_back({ glm::vec3(-176.0f, -21.5f, 137.0f), 5.0f });
+	Tree bigTree;
+	bigTree.position = glm::vec3(-176.0f, -21.5f, 137.0f);
+	bigTree.scale = 5.0f;
+	bigTree.destructible = true;
+	trees.push_back(bigTree);
 
 	// Creates Buildings
 	for (int i = 0; i < 4; i++)
@@ -389,6 +416,37 @@ int main()
 
 		float currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
+
+		// Get ray from camera
+		glm::vec3 rayDir = glm::normalize(camera.getCameraViewDirection());
+		glm::vec3 rayOrigin = camera.getCameraPosition() + rayDir * 0.6f;
+
+		for (Tree& tree : trees)
+		{
+			if (!tree.alive || !tree.destructible)
+				continue;
+
+			if (tree.hitCooldown > 0.0f)
+				tree.hitCooldown -= deltaTime;
+
+			if (crosshairClicked && IsTreeTargeted(tree, rayOrigin, rayDir))
+			{
+				if (tree.hitCooldown <= 0.0f)
+				{
+					tree.hitCount++;
+					tree.hitCooldown = 0.5f;
+
+					std::cout << "Tree hit: "<< tree.hitCount << "/5" << std::endl;
+
+					if (tree.hitCount >= 5)
+					{
+						tree.alive = false;
+						std::cout << "TREE DESTROYED" << std::endl;
+					}
+				}
+			}
+		}
+
 		// GARBAGE ITEM SPAWNING AND COLLECTION
 		itemSpawnTimer += deltaTime;
 		if (itemSpawnTimer >= ITEM_SPAWN_INTERVAL) {
@@ -491,12 +549,12 @@ int main()
 
 			glm::vec3 nextPos = playerPos;
 			nextPos.x += moveDir.x * velocity; // X
-			if (!collidesWithBuildings(nextPos))
+			if (!collidesWithBuildings(nextPos) && !collidesWithTrees(nextPos))
 				playerPos.x = nextPos.x;
-		
+
 			nextPos = playerPos;
 			nextPos.z += moveDir.z * velocity; // Z
-			if (!collidesWithBuildings(nextPos))
+			if (!collidesWithBuildings(nextPos) && !collidesWithTrees(nextPos))
 				playerPos.z = nextPos.z;
 
 			playerYaw = glm::degrees(atan2(moveDir.z, moveDir.x));
@@ -535,7 +593,6 @@ int main()
 				}
 			}
 		}
-
 
 		// Ground 
 		playerPos.x = glm::clamp(playerPos.x, mapMinX, mapMaxX);
@@ -685,6 +742,8 @@ int main()
 		}
 
 		for (const Tree& tree : trees) {
+			if (!tree.alive)
+				continue;
 			glm::mat4 treeModel = glm::mat4(1.0f);
 			treeModel = glm::translate(treeModel, tree.position);
 			treeModel = glm::scale(treeModel, glm::vec3(tree.scale));
@@ -833,9 +892,6 @@ int main()
 		bodyShader.use();
 		glUniform3f(glGetUniformLocation(bodyShader.getId(), "bodyColor"), 0.0f, 1.0f, 0.0f);
 
-		// Get ray from camera
-		glm::vec3 rayOrigin = camera.getCameraPosition();
-		glm::vec3 rayDir = glm::normalize(camera.getCameraViewDirection());
 
 		for (size_t i = 0; i < monsters.size(); i++)
 		{
@@ -862,12 +918,12 @@ int main()
 
 				glm::vec3 nextPos = m.position; // X
 				nextPos.x += dir.x * moveStep;
-				if (!collidesWithBuildings(nextPos))
+				if (!collidesWithBuildings(nextPos) && !collidesWithTrees(nextPos))
 					m.position.x = nextPos.x;
 
 				nextPos = m.position;
 				nextPos.z += dir.z * moveStep; // Z
-				if (!collidesWithBuildings(nextPos))
+				if (!collidesWithBuildings(nextPos) && !collidesWithTrees(nextPos))
 					m.position.z = nextPos.z;
 
 				m.yaw = glm::degrees(atan2(dir.z, dir.x)) + 90.0f;
@@ -1211,6 +1267,28 @@ void drawtree3D(Shader& shader, Mesh& trunkMesh, Mesh& leavesMesh, const glm::ma
 				b, depth - 1, segments - 1, segmentLength * 0.9f, radius * 0.7f);
 	}
 }
+
+bool collidesWithTrees(const glm::vec3& p)
+{
+	for (const Tree& tree : trees)
+	{
+		if (!tree.alive)
+			continue;
+
+		float radius = 1.6f * tree.scale;
+		float dist = glm::length(p - tree.position);
+
+		if (tree.destructible) {
+			radius = tree.scale * 1.1;
+			dist = glm::length(p - tree.position);
+		}
+		
+		if (dist < radius)
+			return true;
+	}
+	return false;
+}
+
 
 void processKeyboardInput()
 {
