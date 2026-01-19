@@ -181,12 +181,13 @@ struct FlyingBullet {
 };
 std::vector<FlyingBullet> flyingBullets;
 
-// Syringe
-struct Syringe {
+// Trash
+struct Trash {
 	glm::vec3 position;
 	float rotationY;
 };
-std::vector<Syringe> syringes;
+std::vector<Trash> trash;
+bool trashSpawned = false;
 
 float itemSpawnTimer = 0.0f;
 const float ITEM_SPAWN_INTERVAL = 5.0f; // Spawns faster now
@@ -294,6 +295,8 @@ int main()
 
 	GLuint texBaseColor = loadBMP("Resources/Textures/gray.bmp");
 
+	GLuint trashTex = loadBMP("Resources/Textures/trash.bmp");
+
 	glEnable(GL_DEPTH_TEST);
 
 	//Test custom mesh loading
@@ -387,6 +390,11 @@ int main()
 	pistolTextures[0].id = texBaseColor;
 	pistolTextures[0].type = "texture_diffuse";
 
+	std::vector<Texture> trashTextures;
+	trashTextures.push_back(Texture());
+	trashTextures[0].id = trashTex;
+	trashTextures[0].type = "texture_diffuse";
+
 	Mesh mesh(vert, ind, textures3);
 
 	// Create Obj files - easier :)
@@ -411,6 +419,7 @@ int main()
 
 	Mesh pistolMesh = loader.loadObj("Resources/Models/GLOCK19.obj", pistolTextures);
 
+	Mesh trashMesh = loader.loadObj("Resources/Models/trash.obj", trashTextures);
 
 	// Create Terrain
 	for (int i = 0; i < 4; i++) {
@@ -436,7 +445,7 @@ int main()
 	cfg.mapMaxX = townMaxX;
 	cfg.mapMinZ = townMinZ;
 	cfg.mapMaxZ = townMaxZ;
-	cfg.baseHeight = BASE_HEIGHT-0.1f;
+	cfg.baseHeight = BASE_HEIGHT-0.2f;
 	cfg.buffer = MOUNTAIN_BUFFER;
 	cfg.ramp = MOUNTAIN_RAMP;
 	cfg.maxHeight = MAX_MOUNTAIN_HEIGHT;
@@ -598,20 +607,48 @@ int main()
 			std::cout << "You found a recipe!" << std::endl;
 		}
 
-		if (player.hasRecipe) {
-			// GARBAGE ITEM SPAWNING AND COLLECTION
-			itemSpawnTimer += deltaTime;
-			if (itemSpawnTimer >= ITEM_SPAWN_INTERVAL) {
-				itemSpawnTimer = 0.0f;
-				for (int i = 0; i < 5; i++) {
-					float randomX = townMinX + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (townMaxX - townMinX)));
-					float randomZ = townMinZ + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (townMaxZ - townMinZ)));
-					syringes.push_back({ glm::vec3(randomX, -19.0f, randomZ), 0.0f });
+		if (player.hasRecipe && !trashSpawned) {
+			trashSpawned = true;
+
+			int trashCount = 30;
+			for (int i = 0; i < trashCount; i++)
+			{
+				float x, z;
+				int zone = rand() % 4;
+
+				switch (zone)
+				{
+				case 0: // Left
+					x = mapMinX + static_cast<float>(rand()) / RAND_MAX * (townMinX - mapMinX);
+					z = mapMinZ + static_cast<float>(rand()) / RAND_MAX * (mapMaxZ - mapMinZ);
+					break;
+
+				case 1: // Right
+					x = townMaxX + static_cast<float>(rand()) / RAND_MAX * (mapMaxX - townMaxX);
+					z = mapMinZ + static_cast<float>(rand()) / RAND_MAX * (mapMaxZ - mapMinZ);
+					break;
+
+				case 2: // Down
+					x = mapMinX + static_cast<float>(rand()) / RAND_MAX * (mapMaxX - mapMinX);
+					z = mapMinZ + static_cast<float>(rand()) / RAND_MAX * (townMinZ - mapMinZ);
+					break;
+
+				case 3: // Up
+					x = mapMinX + static_cast<float>(rand()) / RAND_MAX * (mapMaxX - mapMinX);
+					z = townMaxZ + static_cast<float>(rand()) / RAND_MAX * (mapMaxZ - townMaxZ);
+					break;
 				}
-				std::cout << "10 Syringes spawned!" << std::endl;
+				if (!collidesWithBuildings(glm::vec3(x, -19.5f, z)) &&
+					!collidesWithTrees(glm::vec3(x, -19.5f, z)))
+				trash.push_back({ glm::vec3(x, -19.5f, z), 0.0f });
 			}
 
-			for (auto it = syringes.begin(); it != syringes.end(); ) {
+			std::cout << "Trash spawned outside the city!" << std::endl;
+		}
+
+		if (player.hasRecipe) {
+			// GARBAGE ITEM SPAWNING AND COLLECTION
+			for (auto it = trash.begin(); it != trash.end(); ) {
 				float dist = glm::distance(player.position, it->position);
 				if (dist < ITEM_COLLECT_RADIUS) {
 					player.backpackCount++;
@@ -633,7 +670,7 @@ int main()
 						player.score += 350; // Bonus Score for crafting
 						std::cout << ">>> CRAFTED ANTIDOTE! Total: " << player.antidoteCount << " <<<" << std::endl;
 					}
-					it = syringes.erase(it);
+					it = trash.erase(it);
 				} // TODO : Edge case : Backpack is Full (5/5) AND we couldn't craft (Ammo Full)
 				else {
 					it->rotationY += 50.0f * deltaTime;
@@ -649,6 +686,9 @@ int main()
 			for (int i = 0; i < 10; i++) {
 				float randomX = townMinX + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (townMaxX - townMinX)));
 				float randomZ = townMinZ + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (townMaxZ - townMinZ)));
+				
+				if (!collidesWithBuildings(glm::vec3(randomX, -18.5f, randomZ)) &&
+					!collidesWithTrees(glm::vec3(randomX, -18.5f, randomZ)))
 				bullets.push_back({glm::vec3(randomX, -18.5f, randomZ), 90.0f});
 			}
 			std::cout << "Bullets spawned!" << std::endl;
@@ -883,7 +923,7 @@ int main()
 				ModelMatrix = glm::mat4(1.0f);
 				ModelMatrix = glm::translate(
 					ModelMatrix,
-					glm::vec3(baseX + x * stepX, groundY + 0.25f, baseZ + z * stepZ)
+					glm::vec3(baseX + x * stepX, groundY - 0.1f, baseZ + z * stepZ)
 				);
 				MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
 				glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
@@ -1253,20 +1293,20 @@ int main()
 		// -------------------------------
 
 
-		// --- RENDER SYRINGES ---
+		// Trash
 		shader.use();
-		for (const auto& s : syringes) {
+		for (const auto& t : trash) {
 			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, s.position);
-			model = glm::rotate(model, glm::radians(s.rotationY), glm::vec3(0, 1, 0));
-			model = glm::scale(model, glm::vec3(0.1f));
+			model = glm::translate(model, t.position);
+			model = glm::rotate(model, glm::radians(t.rotationY), glm::vec3(0, 1, 0));
+			model = glm::scale(model, glm::vec3(0.01f));
 
 			// Assuming ProjectionMatrix, ViewMatrix, MatrixID2, ModelMatrixID are available in this scope
 			glm::mat4 mvp = ProjectionMatrix * ViewMatrix * model;
 			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &mvp[0][0]);
 			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &model[0][0]);
 
-			syringeMesh.draw(shader); // TODO : Replace with syringe mesh
+			trashMesh.draw(shader);
 			totalRenderedObjects++;
 		}
 
