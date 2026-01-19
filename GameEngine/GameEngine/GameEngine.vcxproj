@@ -175,6 +175,7 @@
     <None Include="Shaders\vertex_shader.glsl" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="Resources\Textures\bullet.bmp" />
     <Image Include="Resources\Textures\city1.bmp" />
     <Image Include="Resources\Textures\city2.bmp" />
     <Image Include="Resources\Textures\leaves.bmp" />

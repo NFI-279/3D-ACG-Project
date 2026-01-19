@@ -70,7 +70,7 @@ static float ridgedFbm(float x, float z)
     return (ampSum > 0.0f) ? sum / ampSum : 0.0f;
 }
 
-// Math+++
+// Math++++
 static float distanceToPlayableEdge(float x, float z,
     const MountainConfig& c)
 {
@@ -86,7 +86,7 @@ static float distanceToPlayableEdge(float x, float z,
     return std::sqrt(dx * dx + dz * dz);
 }
 
-// Math++++
+// Math+++++
 static float mountainHeight(float x, float z,
     const MountainConfig& c)
 {

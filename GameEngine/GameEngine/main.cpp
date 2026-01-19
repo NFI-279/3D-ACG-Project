@@ -95,6 +95,7 @@ std::vector<Tree> trees;
 
 struct RecipeNote {
 	glm::vec3 position;
+	float rotationY = 0.0f;
 	bool visible = false;
 };
 RecipeNote recipeNote;
@@ -172,8 +173,11 @@ const float BULLET_COLLECT_RADIUS = 2.0f;
 struct FlyingBullet {
 	glm::vec3 position;
 	glm::vec3 direction;
-	float speed;
-	float lifeTime;
+	glm::mat4 rot;     // store full orientation
+	float spin = 0.0f;
+	float spinSpeed = 60.0f;
+	float speed = 10.0f;
+	float lifeTime = 10.0f;
 };
 std::vector<FlyingBullet> flyingBullets;
 
@@ -286,7 +290,7 @@ int main()
 
 	GLuint recipeTex = loadBMP("Resources/Textures/recipe.bmp");
 
-	GLuint bulletTex = loadBMP("Resources/Textures/rock.bmp"); // TODO Change to bullet.bmp
+	GLuint bulletTex = loadBMP("Resources/Textures/bullet.bmp");
 
 	GLuint texBaseColor = loadBMP("Resources/Textures/gray.bmp");
 
@@ -402,7 +406,7 @@ int main()
 
 	Mesh recipeMesh = loader.loadObj("Resources/Models/plane.obj", recipeTexture);
 
-	Mesh bulletMesh = loader.loadObj("Resources/Models/sphere.obj", bulletTexture); // TODO Replace bullet.obj
+	Mesh bulletMesh = loader.loadObj("Resources/Models/bullet.obj", bulletTexture);
 	Mesh syringeMesh = loader.loadObj("Resources/Models/syringe.obj", textures4); // Using tower texture as placeholder
 
 	Mesh pistolMesh = loader.loadObj("Resources/Models/GLOCK19.obj", pistolTextures);
@@ -505,9 +509,17 @@ int main()
 				// Spawn flying bullet
 				FlyingBullet fb;
 				fb.position = camera.getCameraPosition() + rayDir * 0.6f;
-				fb.direction = rayDir;
-				fb.speed = 45.0f;
-				fb.lifeTime = 1.2f;
+				fb.direction = glm::normalize(rayDir);
+				// Build orthonormal basis
+				glm::vec3 forward = fb.direction;
+				glm::vec3 up = glm::vec3(0, 1, 0);
+				glm::vec3 right = glm::normalize(glm::cross(up, forward));
+				glm::vec3 newUp = glm::cross(forward, right);
+				// rotation matrix 
+				fb.rot = glm::mat4(1.0f);
+				fb.rot[0] = glm::vec4(right, 0.0f);
+				fb.rot[1] = glm::vec4(newUp, 0.0f);
+				fb.rot[2] = glm::vec4(forward, 0.0f);
 
 				flyingBullets.push_back(fb);
 
@@ -522,6 +534,7 @@ int main()
 		for (auto it = flyingBullets.begin(); it != flyingBullets.end(); )
 		{
 			it->position += it->direction * it->speed * deltaTime;
+			it->spin += it->spinSpeed * deltaTime;
 			it->lifeTime -= deltaTime;
 
 			// collision with monsters
@@ -570,6 +583,12 @@ int main()
 					}
 				}
 			}
+		}
+
+		if (recipeNote.visible)
+		{
+			// spin speed
+			recipeNote.rotationY += 60.0f * deltaTime; 
 		}
 
 		if (recipeNote.visible && glm::distance(player.position, recipeNote.position) < 2.0f)
@@ -630,7 +649,7 @@ int main()
 			for (int i = 0; i < 10; i++) {
 				float randomX = townMinX + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (townMaxX - townMinX)));
 				float randomZ = townMinZ + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (townMaxZ - townMinZ)));
-				bullets.push_back({glm::vec3(randomX, -19.0f, randomZ), 0.0f});
+				bullets.push_back({glm::vec3(randomX, -18.5f, randomZ), 90.0f});
 			}
 			std::cout << "Bullets spawned!" << std::endl;
 		}
@@ -647,7 +666,7 @@ int main()
 				it = bullets.erase(it);
 			}
 			else {
-				it->rotationY += 50.0f * deltaTime;
+				it->rotationY += 90.0f * deltaTime;
 				++it;
 			}
 		}
@@ -1254,8 +1273,8 @@ int main()
 		for (const auto& b : bullets) {
 			glm::mat4 model = glm::mat4(1.0f);
 			model = glm::translate(model, b.position);
-			model = glm::rotate(model, glm::radians(b.rotationY), glm::vec3(0, 1, 0));
-			model = glm::scale(model, glm::vec3(0.08f));
+			model = glm::rotate(model, (b.rotationY), glm::vec3(0, 1, 0));
+			model = glm::scale(model, glm::vec3(0.25f));
 
 			glm::mat4 mvp = ProjectionMatrix * ViewMatrix * model;
 			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &mvp[0][0]);
@@ -1269,12 +1288,17 @@ int main()
 		{
 			glm::mat4 model = glm::mat4(1.0f);
 			model = glm::translate(model, fb.position);
-			model = glm::scale(model, glm::vec3(0.01f));
+			// Bullet Orientation
+			model = model * fb.rot;
+			// Bullet Spin
+			model = model * glm::rotate(glm::mat4(1.0f),
+				fb.spin,
+				glm::vec3(0, 0, 1));
+			model = glm::scale(model, glm::vec3(0.1f));
 
 			glm::mat4 mvp = ProjectionMatrix * ViewMatrix * model;
 			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &mvp[0][0]);
 			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &model[0][0]);
-
 			bulletMesh.draw(shader);
 		}
 
@@ -1328,6 +1352,7 @@ int main()
 		{
 			glm::mat4 model = glm::mat4(1.0f);
 			model = glm::translate(model, recipeNote.position);
+			model = glm::rotate(model, recipeNote.rotationY, glm::vec3(0.0f, 1.0f, 0.0f));
 			model = glm::rotate(model, (90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
 			model = glm::scale(model, glm::vec3(0.005f)); 
 
