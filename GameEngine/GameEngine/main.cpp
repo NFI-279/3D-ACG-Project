@@ -123,13 +123,13 @@ struct Player {
 	float damageRadius = 1.5f;
 	float damageFlashTimer = 0.0f;
 	// Combat
-	int bulletCount = 0;
 	// float fireCooldown = 0.0f;
 	float maxHitDistance = 10.0f;
 	// Inventory
-	int backpackCount = 0;
-	int maxBackpack = 5;
+	int bulletCount = 0;
+	int trashCount = 0;
 	int antidoteCount = 0;
+	int maxAntidoteBackpack = 5;
 	bool hasRecipe = false;
 	// Progress
 	int score = 0;
@@ -180,6 +180,18 @@ struct FlyingBullet {
 	float lifeTime = 10.0f;
 };
 std::vector<FlyingBullet> flyingBullets;
+
+// Syringe
+struct Syringe {
+	glm::vec3 position;
+	glm::vec3 direction;
+	glm::mat4 rot;
+	float spin = 0.0f;
+	float spinSpeed = 60.0f;
+	float speed = 8.0f;
+	float lifeTime = 6.0f;
+};
+std::vector<Syringe> syringes;
 
 // Trash
 struct Trash {
@@ -292,6 +304,7 @@ int main()
 	GLuint recipeTex = loadBMP("Resources/Textures/recipe.bmp");
 
 	GLuint bulletTex = loadBMP("Resources/Textures/bullet.bmp");
+	GLuint syringeTex = loadBMP("Resources/Textures/syringe.bmp");
 
 	GLuint texBaseColor = loadBMP("Resources/Textures/gray.bmp");
 
@@ -385,6 +398,11 @@ int main()
 	bulletTexture[0].id = bulletTex;
 	bulletTexture[0].type = "texture_diffuse";
 
+	std::vector<Texture> syringeTexture;
+	syringeTexture.push_back(Texture());
+	syringeTexture[0].id = syringeTex;
+	syringeTexture[0].type = "texture_diffuse";
+
 	std::vector<Texture> pistolTextures;
 	pistolTextures.push_back(Texture());
 	pistolTextures[0].id = texBaseColor;
@@ -415,7 +433,7 @@ int main()
 	Mesh recipeMesh = loader.loadObj("Resources/Models/plane.obj", recipeTexture);
 
 	Mesh bulletMesh = loader.loadObj("Resources/Models/bullet.obj", bulletTexture);
-	Mesh syringeMesh = loader.loadObj("Resources/Models/syringe.obj", textures4); // Using tower texture as placeholder
+	Mesh syringeMesh = loader.loadObj("Resources/Models/syringe.obj", syringeTexture);
 
 	Mesh pistolMesh = loader.loadObj("Resources/Models/GLOCK19.obj", pistolTextures);
 
@@ -491,8 +509,13 @@ int main()
 		// Left mouse click
 		static bool leftClickedLastFrame = false;
 		bool leftClickNow = glfwGetMouseButton(window.getWindow(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
-		bool justClicked = leftClickNow && !leftClickedLastFrame;
+		bool justLeftClicked = leftClickNow && !leftClickedLastFrame;
 		leftClickedLastFrame = leftClickNow;
+
+		static bool rightClickedLastFrame = false;
+		bool rightClickNow = glfwGetMouseButton(window.getWindow(), GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
+		bool justRightClicked = rightClickNow && !rightClickedLastFrame;
+		rightClickedLastFrame = rightClickNow;
 
 		float currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
@@ -501,20 +524,12 @@ int main()
 		glm::vec3 rayDir = glm::normalize(camera.getCameraViewDirection());
 		glm::vec3 rayOrigin = camera.getCameraPosition() + rayDir * 0.6f;
 
-		bool shotFired = false;
-		if (!gui.showGUI && justClicked)
+		if (!gui.showGUI && justLeftClicked)
 		{
 			if (player.bulletCount > 0)
 			{
-				// 1. Deduct Ammo
 				player.bulletCount--;
-
-				// 2. Trigger Visuals (Recoil)
 				gui.TriggerShootAnimation();
-
-				// 3. Enable Hit Detection
-				shotFired = true;
-
 				// Spawn flying bullet
 				FlyingBullet fb;
 				fb.position = camera.getCameraPosition() + rayDir * 0.6f;
@@ -540,6 +555,36 @@ int main()
 			}
 		}
 
+		if (!gui.showGUI && justRightClicked)
+		{
+			if (player.antidoteCount > 0)
+			{
+				player.antidoteCount--;
+				// Spawn flying syringe
+				Syringe s;
+				s.position = camera.getCameraPosition() + rayDir * 0.6f;
+				s.direction = glm::normalize(rayDir);
+				// Build orthonormal basis
+				glm::vec3 forward = s.direction;
+				glm::vec3 up = glm::vec3(0, 1, 0);
+				glm::vec3 right = glm::normalize(glm::cross(up, forward));
+				glm::vec3 newUp = glm::cross(forward, right);
+				// rotation matrix 
+				s.rot = glm::mat4(1.0f);
+				s.rot[0] = glm::vec4(right, 0.0f);
+				s.rot[1] = glm::vec4(newUp, 0.0f);
+				s.rot[2] = glm::vec4(forward, 0.0f);
+
+				syringes.push_back(s);
+
+				std::cout << "SYRINGE FIRED! Antidotes left: " << player.antidoteCount << std::endl;
+			}
+			else
+			{
+				std::cout << "*Click* (No antidotes)" << std::endl;
+			}
+		}
+
 		for (auto it = flyingBullets.begin(); it != flyingBullets.end(); )
 		{
 			it->position += it->direction * it->speed * deltaTime;
@@ -548,7 +593,7 @@ int main()
 
 			// collision with monsters
 			bool hit = false;
-			for (size_t i = 0; i < monsters.size(); i++)
+			for (int i = 0; i < monsters.size(); i++)
 			{
 				if (glm::distance(it->position, monsters[i].position + glm::vec3(0, 1.2f, 0)) < 0.6f)
 				{
@@ -565,6 +610,32 @@ int main()
 				++it;
 		}
 
+		for (auto it = syringes.begin(); it != syringes.end(); )
+		{
+			it->position += it->direction * it->speed * deltaTime;
+			it->spin += it->spinSpeed * deltaTime;
+			it->lifeTime -= deltaTime;
+
+			// Cure monster
+			bool hit = false;
+			for (int i = 0; i < monsters.size(); i++)
+			{
+				if (glm::distance(it->position, monsters[i].position + glm::vec3(0, 1.2f, 0)) < 0.6f)
+				{
+					player.score += 500;
+					monsters.erase(monsters.begin() + i);
+					hit = true;
+					break;
+				}
+			}
+
+			if (it->lifeTime <= 0.0f || hit)
+				it = syringes.erase(it);
+			else
+				++it;
+		}
+
+
 		for (Tree& tree : trees)
 		{
 			if (!tree.alive || !tree.destructible)
@@ -573,7 +644,7 @@ int main()
 			if (tree.hitCooldown > 0.0f)
 				tree.hitCooldown -= deltaTime;
 
-			if (justClicked && IsTreeTargeted(tree, rayOrigin, rayDir))
+			if (justLeftClicked && IsTreeTargeted(tree, rayOrigin, rayDir))
 			{
 				if (tree.hitCooldown <= 0.0f)
 				{
@@ -651,7 +722,7 @@ int main()
 			for (auto it = trash.begin(); it != trash.end(); ) {
 				float dist = glm::distance(player.position, it->position);
 				if (dist < ITEM_COLLECT_RADIUS) {
-					player.backpackCount++;
+					player.trashCount++;
 
 					player.score += 150;
 
@@ -664,9 +735,9 @@ int main()
 						std::cout << "Trash collected! Healed +5 HP. Current: " << (int)player.hp << std::endl;
 					}
 
-					if (player.backpackCount >= player.maxBackpack) {
-						player.backpackCount = 0; // Reset Backpack
-						player.antidoteCount++;   // Gain 1 Ammo
+					if (player.trashCount >= player.maxAntidoteBackpack) {
+						player.trashCount = 0; // Reset Trash Counter
+						player.antidoteCount++;   // Gain 1 Antidote
 						player.score += 350; // Bonus Score for crafting
 						std::cout << ">>> CRAFTED ANTIDOTE! Total: " << player.antidoteCount << " <<<" << std::endl;
 					}
@@ -1116,7 +1187,7 @@ int main()
 		glUniform3f(glGetUniformLocation(bodyShader.getId(), "bodyColor"), 0.0f, 1.0f, 0.0f);
 
 
-		for (size_t i = 0; i < monsters.size(); i++)
+		for (int i = 0; i < monsters.size(); i++)
 		{
 			Monster& m = monsters[i];
 			glm::vec3 dir = player.position - m.position;
@@ -1280,7 +1351,8 @@ int main()
 			std::cout << ">>> YOU DIED! Respawning... <<<" << std::endl;
 			player.hp = player.maxHp;
 			player.score = 0; // Reset Score
-			player.backpackCount = 0; // Clear Backpack
+			player.bulletCount = 0;
+			player.trashCount = 0; // Clear Backpack
 			player.position = glm::vec3(1.0f, -19.0f, 1.0f); // Reset Position
 			monsters.clear(); // Clear enemies
 		}
@@ -1342,6 +1414,24 @@ int main()
 			bulletMesh.draw(shader);
 		}
 
+		for (const auto& s : syringes)
+		{
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, s.position);
+			// Syringe Orientation
+			model = model * s.rot;
+			// Syringe Spin
+			model = model * glm::rotate(glm::mat4(1.0f),
+				s.spin,
+				glm::vec3(0, 0, 1));
+			model = glm::scale(model, glm::vec3(0.15f));
+
+			glm::mat4 mvp = ProjectionMatrix * ViewMatrix * model;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &mvp[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &model[0][0]);
+			syringeMesh.draw(shader);
+		}
+
 		// Pistol
 		glDisable(GL_DEPTH_TEST);
 
@@ -1386,7 +1476,7 @@ int main()
 			recipeMesh.draw(shader);
 		}
 
-		gui.Render(player.position, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects, player.score, (int)player.hp, player.backpackCount, player.antidoteCount);
+		gui.Render(player.position, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects, player.score, (int)player.hp, player.trashCount, player.antidoteCount);
 
 		// TEMPORARY DEBUG KEY
 		static bool fPressed = false;
