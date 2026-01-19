@@ -1305,39 +1305,22 @@ int main()
 		// Pistol
 		glDisable(GL_DEPTH_TEST);
 
-		// Camera vectors
 		glm::vec3 camPos = camera.getCameraPosition();
-		//glm::vec3 camForward = camera.getCameraViewDirection();
-		camForward = glm::normalize(camForward);
-		//glm::vec3 camRight = glm::normalize(glm::cross(camForward, glm::vec3(0.0f, 1.0f, 0.0f)));
-		glm::vec3 camUp = glm::vec3(0, 1, 0);
+		//glm::vec3 camForward = glm::normalize(camera.getCameraViewDirection());
+		//glm::vec3 camRight = glm::normalize(glm::cross(camForward, glm::vec3(0, 1, 0)));
+		glm::vec3 camUp = glm::cross(camRight, camForward);
 
-		// optional
-		float sway = sin(glfwGetTime() * 6.0f) * 0.005f;
-		float recoil = justClicked ? -0.03f : 0.0f;
-
-		/*// Pistol position relative to camera
-		glm::vec3 pistolPos = camPos
-			+ camForward * 0.6f   // forward offset
-			+ camRight * 0.45f    // right hand
-			+ camUp * -0.45f // down offset
-			+ camRight * sway
-			+ camForward * recoil;*/
-
-		// Pistol offset in camera space
-		glm::vec3 pistolOffset = camForward * 0.6f     // in front of camera
-			+ camRight * 0.55f     // to the right
-			+ camUp * -0.55f;   // slightly down
+		glm::vec3 pistolOffset =
+			camForward * 0.6f
+			+ camRight * 0.55f
+			+ camUp * -0.55f;
 
 		glm::mat4 pistolModel = glm::mat4(1.0f);
-
 		pistolModel = glm::translate(pistolModel, camPos + pistolOffset);
 
-		// align rotation with camera
-		// cam orientation: X=right, Y=up, Z=-forward
-		pistolModel[0] = glm::vec4(camRight, 0.0f);    // X
-		pistolModel[1] = glm::vec4(camUp, 0.0f);       // Y
-		pistolModel[2] = glm::vec4(-camForward, 0.0f); // Z
+		pistolModel[0] = glm::vec4(-camForward, 0.0f);   // model X = forward
+		pistolModel[1] = glm::vec4(camUp, 0.0f);   // model Y = up
+		pistolModel[2] = glm::vec4(-camRight, 0.0f);   // model Z = right
 
 		pistolModel = glm::scale(pistolModel, glm::vec3(3.6f, 2.4f, 10.5f));
 
