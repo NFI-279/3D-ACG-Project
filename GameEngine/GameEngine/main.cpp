@@ -276,10 +276,20 @@ int main()
 {
 	gui.Init(window.getWindow());
 
-	// HIDE CURSOR 
+	// Sync GUI state (Window starts fullscreen)
+	gui.isFullscreen = true;
+
+	// Hide cursor initially since we re starting in fullscreen mode
+
 	glfwSetInputMode(window.getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
+	static double lastX = window.getWidth() / 2.0;
+	static double lastY = window.getHeight() / 2.0;
+
+	// Initial mouse position setup to prevent startup jump
+	glfwGetCursorPos(window.getWindow(), &lastX, &lastY);
 	
+
 
 	glClearColor(0.2f, 0.8f, 1.0f, 1.0f);
 
@@ -485,12 +495,6 @@ int main()
 	for (int i = 0; i < 4; i++)
 		spawnBuilding(origins[i]);
 
-	static double lastX = window.getWidth() / 2.0;
-	static double lastY = window.getHeight() / 2.0;
-
-	// Initial mouse position setup to prevent startup jump
-	glfwGetCursorPos(window.getWindow(), &lastX, &lastY);
-
 	// Stats counters
 	int totalRenderedObjects = 0;
 
@@ -500,8 +504,7 @@ int main()
 	float displayFPS = 0.0f;
 
 	//check if we close the window or press the escape button
-	while (!window.isPressed(GLFW_KEY_ESCAPE) &&
-		glfwWindowShouldClose(window.getWindow()) == 0)
+	while (glfwWindowShouldClose(window.getWindow()) == 0)
 	{
 		window.clear();
 		totalRenderedObjects = 0;
@@ -519,13 +522,72 @@ int main()
 		rightClickedLastFrame = rightClickNow;
 
 		float currentFrame = glfwGetTime();
-		deltaTime = currentFrame - lastFrame;
+		float realDeltaTime = currentFrame - lastFrame; // Calculate real time passed
+		lastFrame = currentFrame;
+
+		// Freeze Logic : If paused, we tell the rest of the code that 0 seconds passed; If playing, we pass the real time.
+		if (gui.isGamePaused) {
+			deltaTime = 0.0f;
+		}
+		else {
+			deltaTime = realDeltaTime;
+		}
+
+		static bool escPressed = false;
+		if (window.isPressed(GLFW_KEY_ESCAPE))
+		{
+			if (!escPressed) {
+				gui.isGamePaused = !gui.isGamePaused;
+				escPressed = true;
+			}
+		}
+		else {
+			escPressed = false;
+		}
+
+		static bool wasPaused = false;
+		if (gui.isGamePaused != wasPaused)
+		{
+			if (gui.isGamePaused)
+			{
+				// Game Just Paused -> Show Cursor
+				glfwSetInputMode(window.getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+			}
+			else
+			{
+				// Game Just Resumed -> Hide Cursor & Reset Camera
+				glfwSetInputMode(window.getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+				glfwGetCursorPos(window.getWindow(), &lastX, &lastY);
+			}
+			// Update history
+			wasPaused = gui.isGamePaused;
+		}
+
+		// --- FULLSCREEN SWITCHING LOGIC ---
+		GLFWwindow* nativeWin = window.getWindow();
+		bool currentIsFullscreen = (glfwGetWindowMonitor(nativeWin) != nullptr);
+
+		if (gui.isFullscreen != currentIsFullscreen)
+		{
+			if (gui.isFullscreen) {
+				// Switch to Fullscreen
+				GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+				const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+				glfwSetWindowMonitor(nativeWin, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+			}
+			else {
+				// Switch to Windowed (1280x720 centered)
+				int w = 1280, h = 720;
+				const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+				glfwSetWindowMonitor(nativeWin, nullptr, (mode->width - w) / 2, (mode->height - h) / 2, w, h, 0);
+			}
+		}
 
 		// Get ray from camera
 		glm::vec3 rayDir = glm::normalize(camera.getCameraViewDirection());
 		glm::vec3 rayOrigin = camera.getCameraPosition() + rayDir * 0.6f;
 
-		if (!gui.showGUI && justLeftClicked)
+		if (!gui.showGUI && !gui.isGamePaused && justLeftClicked)
 		{
 			if (player.bulletCount > 0)
 			{
@@ -556,7 +618,7 @@ int main()
 			}
 		}
 
-		if (!gui.showGUI && justRightClicked)
+		if (!gui.showGUI && !gui.isGamePaused && justRightClicked)
 		{
 			if (player.antidoteCount > 0)
 			{
@@ -795,7 +857,7 @@ int main()
 		lastFrame = currentFrame;
 
 		// fps calculation
-		fpsAccumulator += deltaTime;
+		fpsAccumulator += realDeltaTime;
 		fpsFrameCount++;
 
 		// Update the FPS display only every 1 second
@@ -812,7 +874,7 @@ int main()
 		// Mouse Input
 		double xpos, ypos;
 		glfwGetCursorPos(window.getWindow(), &xpos, &ypos);
-		if (!gui.showGUI)
+		if (!gui.showGUI && !gui.isGamePaused)
 		{
 			float xoffset = (xpos - lastX) * mouseSensitivity;
 			float yoffset = (lastY - ypos) * mouseSensitivity; // Reversed since y-coordinates range from bottom to top
@@ -1489,6 +1551,8 @@ int main()
 		gui.Render(player.position, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects,
 			player.score, (int)player.hp, player.trashCount, player.antidoteCount, player.bulletCount);
 
+
+
 		// TEMPORARY DEBUG KEY
 		static bool fPressed = false;
 		if (window.isPressed(GLFW_KEY_F)) {
@@ -1502,7 +1566,7 @@ int main()
 			fPressed = false;
 		}
 
-		if (window.isPressed(GLFW_KEY_INSERT))
+		if (window.isPressed(GLFW_KEY_INSERT) && !gui.isGamePaused)
 		{
 			if (!openMenu)
 			{

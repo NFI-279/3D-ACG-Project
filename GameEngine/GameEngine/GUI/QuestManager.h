@@ -23,6 +23,9 @@ public:
 
     bool IsAnnouncementActive() const { return isAnnouncementActive; }
 
+    const char* GetCurrentTitle();
+    const char* GetCurrentDescription();
+
 private:
     std::vector<QuestTask> quests;
     int currentQuestIndex = -1;

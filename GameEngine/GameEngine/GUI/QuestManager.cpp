@@ -28,6 +28,22 @@ void QuestManager::AddQuest(std::string title, std::string desc) {
     quests.push_back(q);
 }
 
+const char* QuestManager::GetCurrentTitle() {
+    // Safety check
+    if (currentQuestIndex >= 0 && currentQuestIndex < quests.size()) {
+        return quests[currentQuestIndex].title.c_str();
+    }
+    return "Mission Complete";
+}
+
+const char* QuestManager::GetCurrentDescription() {
+    // Safety check
+    if (currentQuestIndex >= 0 && currentQuestIndex < quests.size()) {
+        return quests[currentQuestIndex].description.c_str();
+    }
+    return "All objectives finished. Extraction team inbound.";
+}
+
 void QuestManager::CompleteCurrentQuest() {
     // Safety check: Prevent spamming past the end
     if (currentQuestIndex >= 0 && currentQuestIndex < quests.size()) {

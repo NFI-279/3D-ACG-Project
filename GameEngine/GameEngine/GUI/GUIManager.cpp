@@ -228,6 +228,135 @@ void CenterIconWithShadow(const char* icon, float scale, ImVec4 color) {
     ImGui::Dummy(ImVec2(iconSize.x, iconSize.y));
 }
 
+
+void GUIManager::RenderPauseMenu(float scale)
+{
+    if (!isGamePaused) return;
+
+    ImGuiIO& io = ImGui::GetIO();
+
+    ImDrawList* bgDraw = ImGui::GetBackgroundDrawList();
+
+    // DARK BLUR OVERLAY
+    bgDraw->AddRectFilled(
+        ImVec2(0, 0),
+        ImVec2(io.DisplaySize.x, io.DisplaySize.y),
+        IM_COL32(0, 0, 0, 220)
+    );
+
+    // CARD DIMENSIONS
+    float width = 420.0f * scale;
+    float height = 440.0f * scale;
+
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(width, height));
+
+    // Styles
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.04f, 0.04f, 0.05f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 1.0f, 1.0f, 0.08f));
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1, 1, 1, 0.05f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1, 1, 1, 0.1f));
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(35.0f * scale, 35.0f * scale));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f * scale);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 15.0f * scale));
+
+    if (ImGui::Begin("PauseMenu", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove))
+    {
+        ImGui::SetWindowFontScale(scale);
+        ImVec4 goldCol = ImVec4(0.85f, 0.75f, 0.45f, 1.0f);
+        ImVec4 greyCol = ImVec4(0.6f, 0.6f, 0.65f, 1.0f);
+        ImVec4 whiteCol = ImVec4(0.95f, 0.95f, 0.95f, 1.0f);
+
+        // HEADER
+        ImVec2 p = ImGui::GetCursorScreenPos();
+        float iconSize = 10.0f * scale;
+
+        // Diamond Icon
+        ImGui::GetWindowDrawList()->AddQuadFilled(
+            ImVec2(p.x, p.y + iconSize / 2),
+            ImVec2(p.x + iconSize / 2, p.y),
+            ImVec2(p.x + iconSize, p.y + iconSize / 2),
+            ImVec2(p.x + iconSize / 2, p.y + iconSize),
+            ImGui::ColorConvertFloat4ToU32(goldCol)
+        );
+
+        // "GAME PAUSED" Label
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + iconSize + (12.0f * scale));
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() - (2.0f * scale));
+        ImGui::PushFont(fontMono);
+        ImGui::TextColored(greyCol, "GAME PAUSED");
+        ImGui::PopFont();
+
+        // "Menu" Title
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() - (5.0f * scale));
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + iconSize + (12.0f * scale));
+        ImGui::PushFont(fontHeader);
+        ImGui::TextColored(whiteCol, "Menu");
+        ImGui::PopFont();
+
+        ImGui::Spacing(); ImGui::Spacing();
+
+        // CURRENT MISSION
+        ImGui::PushFont(fontMono);
+        ImGui::TextColored(goldCol, "CURRENT MISSION");
+        ImGui::PopFont();
+
+        ImGui::PushFont(fontHeader);
+        ImGui::TextColored(whiteCol, "%s", questManager.GetCurrentTitle());
+        ImGui::PopFont();
+
+        ImGui::PushFont(fontUI);
+        ImGui::PushStyleColor(ImGuiCol_Text, greyCol);
+        ImGui::TextWrapped("%s", questManager.GetCurrentDescription());
+        ImGui::PopStyleColor();
+        ImGui::PopFont();
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        // BUTTONS
+        float btnHeight = 40.0f * scale;
+        ImGui::PushFont(fontUI);
+
+        // Return to Game
+        if (ImGui::Button("Return to Game", ImVec2(-1, btnHeight))) {
+            isGamePaused = false;
+        }
+
+        // Display Mode
+        const char* modeText = isFullscreen ? "FULLSCREEN" : "WINDOWED";
+
+        if (ImGui::Button("##DisplayMode", ImVec2(-1, btnHeight))) {
+            isFullscreen = !isFullscreen;
+        }
+
+        ImVec2 btnMin = ImGui::GetItemRectMin();
+        ImVec2 btnMax = ImGui::GetItemRectMax();
+        float textY = btnMin.y + (btnHeight - ImGui::GetFontSize()) / 2.0f;
+
+        // "Display Mode" (Left)
+        ImGui::GetWindowDrawList()->AddText(ImVec2(btnMin.x + 10 * scale, textY), ImGui::ColorConvertFloat4ToU32(greyCol), "Display Mode");
+
+        // Value (Right, Gold)
+        float valWidth = ImGui::CalcTextSize(modeText).x;
+        ImGui::GetWindowDrawList()->AddText(ImVec2(btnMax.x - valWidth - 10 * scale, textY), ImGui::ColorConvertFloat4ToU32(goldCol), modeText);
+
+        // Exit Game
+        if (ImGui::Button("Exit Game", ImVec2(-1, btnHeight))) {
+            exit(0);
+        }
+
+        ImGui::PopFont();
+    }
+    ImGui::End();
+
+    ImGui::PopStyleVar(3); // Padding, Rounding, Spacing
+    ImGui::PopStyleColor(5);
+}
+
 void GUIManager::RenderStatsHUD(float scale)
 {
     ImGuiIO& io = ImGui::GetIO();
@@ -646,7 +775,6 @@ void GUIManager::DrawCrosshair(float scale)
     DrawCapsule(ImVec2(center.x - halfThick, center.y + currentGap), ImVec2(center.x + halfThick, center.y + currentGap + length));
 }
 
-
 void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenHeight, float fps, int renderedObjects, int currentScore, int currentHealth, int currentBackpack, int currentAntidotes, int currentGunAmmo)
 {
     //if (!showGUI) return;
@@ -672,13 +800,16 @@ void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenH
     float dt = ImGui::GetIO().DeltaTime;
     crosshairAlpha += (targetAlpha - crosshairAlpha) * 5.0f * dt;
 
-    if (crosshairAlpha > 0.01f) {
-        DrawCrosshair(uiScale);
+    if (!isGamePaused)
+    {
+        if (crosshairAlpha > 0.01f) {
+            DrawCrosshair(uiScale);
+        }
+        bool showQuestDetails = ImGui::IsKeyDown(ImGuiKey_Tab);
+        // Also hides the banner and stops its animation timer
+        questManager.Render(fontUI, fontHeader, fontMono, uiScale, showQuestDetails);
     }
 
-    bool showQuestDetails = ImGui::IsKeyDown(ImGuiKey_Tab);
-
-    questManager.Render(fontUI, fontHeader, fontMono, uiScale, showQuestDetails);
 
     RenderStatsHUD(uiScale);
 
@@ -889,8 +1020,9 @@ void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenH
         ImGui::PopStyleColor(5);
     }
 
-
+    RenderPauseMenu(uiScale);
     ImGui::Render();
+    
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 

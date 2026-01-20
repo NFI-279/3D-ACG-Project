@@ -18,6 +18,9 @@ public:
     bool dayNightCycle = false;    // Scene Control
     bool enableAnimation = false;  // Scene Control
 
+    bool isGamePaused = false;     // Toggled by ESC
+    bool isFullscreen = true;      // Tracks window state
+
     float crosshairAlpha = 1.0f; // 1.0 = Visible, 0.0 = Hidden
 
     void Init(GLFWwindow* window);
@@ -28,6 +31,8 @@ public:
 
     void Render(const glm::vec3& playerPos, int screenWidth, int screenHeight, float fps, int renderedObjects,
         int currentScore, int currentHealth, int currentBackpack, int currentAntidotes, int currentGunAmmo);
+
+    void RenderPauseMenu(float scale);
 
     void AddLog(const std::string& message) {
         if (logs.size() > 50) logs.erase(logs.begin()); // Keep last 50 logs
