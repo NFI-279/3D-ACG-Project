@@ -1,15 +1,45 @@
 ﻿  camera.cpp
-F:\Teaching\Sem1\ACG\Hws\GameEngine\GameEngine\Camera\camera.h(3,10): fatal error C1083: Cannot open include file: 'glm.hpp': No such file or directory
+  imgui.cpp
+C:\Users\svgca\Desktop\3D-ACG-Project\GameEngine\GameEngine\Camera\camera.h(3,10): error C1083: Cannot open include file: 'glm.hpp': No such file or directory
+  (compiling source file 'Camera/camera.cpp')
+  
+  imgui_draw.cpp
+  imgui_impl_glfw.cpp
+C:\Users\svgca\Desktop\3D-ACG-Project\GameEngine\GameEngine\External\imgui\imgui_impl_glfw.cpp(123,10): error C1083: Cannot open include file: 'glfw3.h': No such file or directory
+  imgui_impl_opengl3.cpp
+  imgui_tables.cpp
+  imgui_widgets.cpp
   window.cpp
-F:\Teaching\Sem1\ACG\Hws\GameEngine\GameEngine\Graphics\window.h(2,10): fatal error C1083: Cannot open include file: 'glew.h': No such file or directory
+C:\Users\svgca\Desktop\3D-ACG-Project\GameEngine\GameEngine\Graphics\window.h(2,10): error C1083: Cannot open include file: 'glew.h': No such file or directory
+  (compiling source file 'Graphics/window.cpp')
+  
+  GUIManager.cpp
+C:\Users\svgca\Desktop\3D-ACG-Project\GameEngine\GameEngine\GUI\GUIManager.h(5,10): error C1083: Cannot open include file: 'glew.h': No such file or directory
+  (compiling source file 'GUI/GUIManager.cpp')
+  
+  QuestManager.cpp
   main.cpp
-F:\Teaching\Sem1\ACG\Hws\GameEngine\GameEngine\Graphics\window.h(2,10): fatal error C1083: Cannot open include file: 'glew.h': No such file or directory
+C:\Users\svgca\Desktop\3D-ACG-Project\GameEngine\GameEngine\Graphics\window.h(2,10): error C1083: Cannot open include file: 'glew.h': No such file or directory
+  (compiling source file 'main.cpp')
+  
   meshLoaderObj.cpp
-F:\Teaching\Sem1\ACG\Hws\GameEngine\GameEngine\Model Loading\meshLoaderObj.h(4,10): fatal error C1083: Cannot open include file: 'glew.h': No such file or directory
+C:\Users\svgca\Desktop\3D-ACG-Project\GameEngine\GameEngine\Model Loading\meshLoaderObj.h(4,10): error C1083: Cannot open include file: 'glew.h': No such file or directory
+  (compiling source file 'Model%20Loading/meshLoaderObj.cpp')
+  
   mesh.cpp
-F:\Teaching\Sem1\ACG\Hws\GameEngine\GameEngine\Model Loading\mesh.h(2,10): fatal error C1083: Cannot open include file: 'glm.hpp': No such file or directory
+C:\Users\svgca\Desktop\3D-ACG-Project\GameEngine\GameEngine\Model Loading\mesh.h(2,10): error C1083: Cannot open include file: 'glm.hpp': No such file or directory
+  (compiling source file 'Model%20Loading/mesh.cpp')
+  
+  mountain.cpp
+C:\Users\svgca\Desktop\3D-ACG-Project\GameEngine\GameEngine\Mountain\mountain.h(4,10): error C1083: Cannot open include file: '../glm/glm.hpp': No such file or directory
+  (compiling source file 'Mountain/mountain.cpp')
+  
   shader.cpp
-F:\Teaching\Sem1\ACG\Hws\GameEngine\GameEngine\Shaders\shader.h(3,10): fatal error C1083: Cannot open include file: 'glew.h': No such file or directory
+C:\Users\svgca\Desktop\3D-ACG-Project\GameEngine\GameEngine\Shaders\shader.h(3,10): error C1083: Cannot open include file: 'glew.h': No such file or directory
+  (compiling source file 'Shaders/shader.cpp')
+  
   texture.cpp
-F:\Teaching\Sem1\ACG\Hws\GameEngine\GameEngine\Model Loading\texture.h(2,10): fatal error C1083: Cannot open include file: 'glew.h': No such file or directory
+C:\Users\svgca\Desktop\3D-ACG-Project\GameEngine\GameEngine\Model Loading\texture.h(2,10): error C1083: Cannot open include file: 'glew.h': No such file or directory
+  (compiling source file 'Model%20Loading/texture.cpp')
+  
   Generating Code...

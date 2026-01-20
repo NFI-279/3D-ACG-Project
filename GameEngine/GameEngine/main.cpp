@@ -130,6 +130,7 @@ struct Player {
 	int trashCount = 0;
 	int antidoteCount = 0;
 	int maxAntidoteBackpack = 5;
+	const int maxGunAmmo = 15;
 	bool hasRecipe = false;
 	// Progress
 	int score = 0;
@@ -529,7 +530,7 @@ int main()
 			if (player.bulletCount > 0)
 			{
 				player.bulletCount--;
-				gui.TriggerShootAnimation();
+				gui.TriggerGunShootAnimation();
 				// Spawn flying bullet
 				FlyingBullet fb;
 				fb.position = camera.getCameraPosition() + rayDir * 0.6f;
@@ -559,6 +560,7 @@ int main()
 		{
 			if (player.antidoteCount > 0)
 			{
+				gui.TriggerShootAnimation();
 				player.antidoteCount--;
 				// Spawn flying syringe
 				Syringe s;
@@ -769,12 +771,20 @@ int main()
 			float dist = glm::distance(player.position, it->position);
 			if (dist < BULLET_COLLECT_RADIUS) {
 
-				player.bulletCount += 1;
-				player.score += 200;
+				// NEW: Check Limit
+				if (player.bulletCount < player.maxGunAmmo)
+				{
+					player.bulletCount += 1;
+					player.score += 200;
+					std::cout << "Bullet collected! Ammo: " << player.bulletCount << std::endl;
 
-				std::cout << "Bullet collected! Ammo: " << player.bulletCount << std::endl;
-
-				it = bullets.erase(it);
+					it = bullets.erase(it);
+				}
+				else
+				{
+					// Full ammo, ignore pickup
+					++it;
+				}
 			}
 			else {
 				it->rotationY += 90.0f * deltaTime;
@@ -1476,7 +1486,8 @@ int main()
 			recipeMesh.draw(shader);
 		}
 
-		gui.Render(player.position, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects, player.score, (int)player.hp, player.trashCount, player.antidoteCount);
+		gui.Render(player.position, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects,
+			player.score, (int)player.hp, player.trashCount, player.antidoteCount, player.bulletCount);
 
 		// TEMPORARY DEBUG KEY
 		static bool fPressed = false;

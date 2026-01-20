@@ -23,10 +23,11 @@ public:
     void Init(GLFWwindow* window);
     void Shutdown();
 
-    void TriggerShootAnimation();
+    void TriggerShootAnimation(); // For Syringe
+    void TriggerGunShootAnimation(); // For Gun
 
     void Render(const glm::vec3& playerPos, int screenWidth, int screenHeight, float fps, int renderedObjects,
-        int currentScore, int currentHealth, int currentBackpack, int currentAntidotes);
+        int currentScore, int currentHealth, int currentBackpack, int currentAntidotes, int currentGunAmmo);
 
     void AddLog(const std::string& message) {
         if (logs.size() > 50) logs.erase(logs.begin()); // Keep last 50 logs
@@ -43,10 +44,12 @@ private:
     int playerScore = 30;
     int antidoteCount = 0;
     int backpackCount = 0;
+    int gunAmmoCount = 0;
 
     // Constants
     const int maxHealth = 100;
     const int maxBackpack = 5;
+    const int maxGunAmmo = 15;
 
     // Animation State
     // Health
@@ -63,6 +66,8 @@ private:
     float antidoteScaleTimer = 0.0f;
     float antidoteScaleDir = 0.0f;
     float backpackPulseTimer = 0.0f;
+    float gunScaleTimer = 0.0f;
+    float gunScaleDir = 0.0f;
 
     // Fonts
     ImFont* fontHeader = nullptr;

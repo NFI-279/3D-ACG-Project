@@ -97,6 +97,12 @@ void GUIManager::TriggerShootAnimation()
     antidoteScaleDir = -1.0f;
 }
 
+void GUIManager::TriggerGunShootAnimation()
+{
+    gunScaleTimer = 0.5f;
+    gunScaleDir = -1.0f;
+}
+
 bool DrawToggleSwitch(const char* label, bool* v)
 {
     // Text on Left
@@ -268,11 +274,17 @@ void GUIManager::RenderStatsHUD(float scale)
     else displayedScore = (float)playerScore;
 
     // NEW: Antidote/Backpack Timers
-    if (antidoteScaleTimer > 0.0f) antidoteScaleTimer -= dt * 4.0f; // Fast Pop/Recoil recovery
-    else antidoteScaleTimer = 0.0f;
+    if (antidoteScaleTimer > 0.0f) 
+        antidoteScaleTimer -= dt * 4.0f; // Fast Pop/Recoil recovery
+    else 
+        antidoteScaleTimer = 0.0f;
 
     if (backpackPulseTimer > 0.0f) backpackPulseTimer -= dt * 3.0f;
     else backpackPulseTimer = 0.0f;
+
+    if (gunScaleTimer > 0.0f) 
+        gunScaleTimer -= dt * 4.0f; 
+    else gunScaleTimer = 0.0f;
 
 
     // =========================================================
@@ -289,7 +301,7 @@ void GUIManager::RenderStatsHUD(float scale)
     ImVec4 colDim = ImVec4(0.4f, 0.4f, 0.4f, 1.0f); // For empty ammo
     ImU32 sepCol = IM_COL32(255, 255, 255, 15);
 
-    float width = 480.0f * scale;
+    float width = 650 * scale;
     float height = 65.0f * scale;
     float rounding = 4.0f * scale;
     float bottomMargin = 15.0f * scale;
@@ -323,11 +335,11 @@ void GUIManager::RenderStatsHUD(float scale)
         draw->AddRectFilled(p, ImVec2(p.x + width, p.y + height), bgCol, rounding);
         draw->AddRect(p, ImVec2(p.x + width, p.y + height), borderCol, rounding);
 
-        if (ImGui::BeginTable("StatsTable", 3, ImGuiTableFlags_SizingStretchSame))
+        if (ImGui::BeginTable("StatsTable", 4, ImGuiTableFlags_SizingStretchSame))
         {
             // --- SHARED HELPER FOR HEALTH & SCORE ---
             auto DrawSimpleBlock = [&](const char* label, const char* value, const char* icon, ImU32 iconColor, ImU32 textColor, bool showSeparator)
-                {
+             {
                     ImGui::TableNextColumn();
                     float colWidth = ImGui::GetColumnWidth();
                     float startX = ImGui::GetCursorScreenPos().x;
@@ -492,6 +504,89 @@ void GUIManager::RenderStatsHUD(float scale)
                 // Or just center relative to centerY
                 draw->AddText(ImVec2(currentX, baselineY + (2.0f * scale)), packColor, packVal);
                 ImGui::PopFont();
+
+                float sepH = height * 0.5f;
+                float sepY = p.y + (height - sepH) / 2.0f;
+                draw->AddLine(ImVec2(startX + colWidth, sepY), ImVec2(startX + colWidth, sepY + sepH), sepCol, 1.0f * scale);
+            }
+            // GUN AMMO
+            ImGui::TableNextColumn();
+            {
+                float colWidth = ImGui::GetColumnWidth();
+                float startX = ImGui::GetCursorScreenPos().x;
+                float centerY = ImGui::GetCursorScreenPos().y + (height / 2.0f);
+
+                const char* icon = ICON_FA_GUN;
+                const char* label = "AMMO";
+
+                char ammoVal[16]; sprintf_s(ammoVal, "%d", gunAmmoCount);
+                char maxVal[16];  sprintf_s(maxVal, "/%d", maxGunAmmo);
+
+                ImGui::PushFont(fontMono);   ImVec2 iconSz = ImGui::CalcTextSize(icon);    ImGui::PopFont();
+                ImGui::PushFont(fontMono);   ImVec2 labelSz = ImGui::CalcTextSize(label);   ImGui::PopFont();
+
+                float currentScale = 1.0f;
+                if (gunScaleTimer > 0.0f) {
+                    float target = (gunScaleDir > 0) ? 1.5f : 0.8f;
+                    currentScale = 1.0f + (target - 1.0f) * gunScaleTimer;
+                }
+
+                ImGui::PushFont(fontHeader);
+                ImGui::SetWindowFontScale(currentScale * scale);
+                ImVec2 ammoSz = ImGui::CalcTextSize(ammoVal);
+                ImGui::SetWindowFontScale(scale);
+                ImGui::PopFont();
+
+                ImGui::PushFont(fontUI);
+                ImVec2 maxSz = ImGui::CalcTextSize(maxVal);
+                ImGui::PopFont();
+
+                // Recalculate layout for this specific column content
+                float valGap = 4.0f * scale;
+                float compositeValueWidth = ammoSz.x + valGap + maxSz.x;
+                float gap = 22.0f * scale;
+                float iconOffset = -gap - iconSz.x;
+                float valueGroupOffset = (labelSz.x - compositeValueWidth) / 2.0f;
+
+                float groupMinX = (iconOffset < valueGroupOffset) ? iconOffset : valueGroupOffset;
+                float groupMaxX = (labelSz.x > (valueGroupOffset + compositeValueWidth)) ? labelSz.x : (valueGroupOffset + compositeValueWidth);
+                float totalGroupWidth = groupMaxX - groupMinX;
+
+                float colCenter = startX + (colWidth / 2.0f);
+                float screenLabelStart = colCenter - (totalGroupWidth / 2.0f) - groupMinX;
+
+                // Icon: Red if 0, Gold otherwise
+                ImU32 iconCol = (gunAmmoCount == 0) ? ImGui::ColorConvertFloat4ToU32(colRed) : ImGui::ColorConvertFloat4ToU32(colGold);
+                ImU32 labelCol = ImGui::ColorConvertFloat4ToU32(colGrey);
+                // Value: White (Standard) or Red if empty
+                ImU32 textCol = (gunAmmoCount == 0) ? ImGui::ColorConvertFloat4ToU32(colRed) : ImGui::ColorConvertFloat4ToU32(colWhite);
+
+                ImGui::PushFont(fontMono);
+                draw->AddText(ImVec2(screenLabelStart + iconOffset, centerY - iconSz.y / 2.0f), iconCol, icon);
+                ImGui::PopFont();
+
+                ImGui::PushFont(fontMono);
+                draw->AddText(ImVec2(screenLabelStart, centerY - labelSz.y - (1.0f * scale)), labelCol, label);
+                ImGui::PopFont();
+
+                float currentX = screenLabelStart + valueGroupOffset;
+                float baselineY = centerY + (1.0f * scale);
+
+                ImGui::PushFont(fontHeader);
+                ImGui::SetWindowFontScale(currentScale * scale);
+
+                float scaleShiftX = (ammoSz.x - (ammoSz.x / currentScale)) / 2.0f;
+                float scaleShiftY = (ammoSz.y - (ammoSz.y / currentScale)) / 2.0f;
+                draw->AddText(ImVec2(currentX - scaleShiftX, baselineY - scaleShiftY), textCol, ammoVal);
+
+                ImGui::SetWindowFontScale(scale);
+                ImGui::PopFont();
+
+                currentX += ammoSz.x + valGap;
+
+                ImGui::PushFont(fontUI);
+                draw->AddText(ImVec2(currentX, baselineY + (2.0f * scale)), ImGui::ColorConvertFloat4ToU32(colGrey), maxVal);
+                ImGui::PopFont();
             }
 
             ImGui::EndTable();
@@ -552,14 +647,14 @@ void GUIManager::DrawCrosshair(float scale)
 }
 
 
-void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenHeight, float fps, int renderedObjects, int currentScore, int currentHealth, int currentBackpack, int currentAntidotes)
-
+void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenHeight, float fps, int renderedObjects, int currentScore, int currentHealth, int currentBackpack, int currentAntidotes, int currentGunAmmo)
 {
     //if (!showGUI) return;
     this->playerScore = currentScore;
     this->playerHealth = currentHealth;
     this->backpackCount = currentBackpack;
     this->antidoteCount = currentAntidotes;
+    this->gunAmmoCount = currentGunAmmo;
 
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
