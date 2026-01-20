@@ -537,6 +537,11 @@ int main()
 		bool justRightClicked = rightClickNow && !rightClickedLastFrame;
 		rightClickedLastFrame = rightClickNow;
 
+		static bool spacePressedLastFrame = false;
+		bool spaceNow = window.isPressed(GLFW_KEY_SPACE);
+		bool justPressedSpace = spaceNow && !spacePressedLastFrame;
+		spacePressedLastFrame = spaceNow;
+
 		float currentFrame = glfwGetTime();
 		float realDeltaTime = currentFrame - lastFrame; // Calculate real time passed
 		lastFrame = currentFrame;
@@ -745,7 +750,7 @@ int main()
 
 			if (gui.questManager.GetCurrentIndex() != 2) continue;
 
-			if (justLeftClicked && IsTreeTargeted(tree, rayOrigin, rayDir))
+			if (justPressedSpace && IsTreeTargeted(tree, rayOrigin, rayDir))
 			{
 				if (tree.hitCooldown <= 0.0f)
 				{
