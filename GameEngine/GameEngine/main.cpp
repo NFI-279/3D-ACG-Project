@@ -15,6 +15,8 @@ int questBulletsCollected = 0;
 int questMonstersKilled = 0;
 
 float deathScreenTimer = 0.0f;
+bool changeScreen = false;
+bool lastChange = false;
 
 struct Wall {
 	glm::vec3 localPos;   
@@ -137,7 +139,7 @@ struct Player {
 	int trashCount = 0;
 	int antidoteCount = 0;
 	int maxAntidoteBackpack = 5;
-	const int maxGunAmmo = 15;
+	int maxGunAmmo = 15;
 	bool hasRecipe = false;
 	// Progress
 	int score = 0;
@@ -328,6 +330,7 @@ int main()
 
 	GLuint bodyTex = loadBMP("Resources/Textures/dirty.bmp");
 	GLuint mountainTex = loadBMP("Resources/Textures/mountain.bmp");
+	GLuint skyboxTex = loadBMP("Resources/Textures/skybox.bmp");
 
 	GLuint recipeTex = loadBMP("Resources/Textures/recipe.bmp");
 
@@ -406,6 +409,11 @@ int main()
 	mountainTextures[0].id = mountainTex;
 	mountainTextures[0].type = "texture_diffuse";
 
+	std::vector<Texture> skyboxTextures;
+	skyboxTextures.push_back(Texture());
+	skyboxTextures[0].id = skyboxTex;
+	skyboxTextures[0].type = "texture_diffuse";
+
 	std::vector<Texture> trunkTextures;
 	trunkTextures.push_back(Texture());
 	trunkTextures[0].id = trunkTex;
@@ -454,6 +462,8 @@ int main()
 	Mesh terrainMesh = loader.loadObj("Resources/Models/plane.obj", textures5);
 
 	Mesh bodyBox = loader.loadObj("Resources/Models/cube.obj", bodyTextures);
+
+	Mesh skyboxMesh = loader.loadObj("Resources/Models/cubev3.obj", skyboxTextures);
 
 	Mesh trunkBox = loader.loadObj("Resources/Models/cubev2.obj", trunkTextures);
 	Mesh leavesBox = loader.loadObj("Resources/Models/sphere.obj", leavesTextures);
@@ -1111,13 +1121,26 @@ int main()
 		/*box.draw(shader);
 		totalRenderedObjects++;*/
 
-		// Draw mountains
-		ModelMatrix = glm::mat4(1.0f);
-		MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
-		glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
-		glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
-		mountainMesh.draw(shader);
-		totalRenderedObjects++;
+		if (!changeScreen) {
+			// Draw mountains
+			ModelMatrix = glm::mat4(1.0f);
+			MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
+			mountainMesh.draw(shader);
+			totalRenderedObjects++;
+		}
+		else {
+			// Draw Skybox
+			ModelMatrix = glm::mat4(1.0f);
+			ModelMatrix = glm::translate(ModelMatrix, glm::vec3(-178.0f, -21.0f, 138.0f));
+			ModelMatrix = glm::scale(ModelMatrix, glm::vec3(350.0f, 200.0f, 280.0f));
+			MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
+			skyboxMesh.draw(shader);
+			totalRenderedObjects++;
+		}
 
 		// Draw Map
 		for (int x = 0; x < 2; x++)
@@ -1197,143 +1220,6 @@ int main()
 					treeModel, 4, 5, 0.6f, 0.2f);
 		}
 
-		/*/// SIMPLE HUMAN MODEL ///
-
-		bodyShader.use();
-		//glUniform3f(glGetUniformLocation(bodyShader.getId(), "bodyColor"), 0.396f, 0.502f, 0.341f); // dark green
-		//glUniform3f(glGetUniformLocation(bodyShader.getId(), "bodyColor"), 0.0f, 1.0f, 0.0f); // all green (maybe for monsters?)
-		glUniform3f(glGetUniformLocation(bodyShader.getId(), "bodyColor"), 0.6f, 0.486f, 0.431f); // texture is kind of red-ish
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, bodyTex);
-		glUniform1i(glGetUniformLocation(bodyShader.getId(), "bodyTexture"), 0);
-
-		// Head (static)
-		{
-			// glUniform3f(glGetUniformLocation(bodyShader.getId(), "bodyColor"), 1.0f, 0.922f, 0.812f); // skin color
-
-			glm::mat4 headModel = glm::mat4(1.0f);
-			headModel = glm::translate(headModel, playerPos);
-			headModel = glm::rotate(headModel, glm::radians(playerYaw), glm::vec3(0, 1, 0));
-			headModel = glm::translate(headModel, glm::vec3(0.0f, 1.35f, -0.10f)); // position above torso
-			headModel = glm::scale(headModel, glm::vec3(0.10f, 0.10f, 0.10f));
-
-			glm::mat4 headMVP = ProjectionMatrix * ViewMatrix * headModel;
-			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &headMVP[0][0]);
-			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &headModel[0][0]);
-
-			bodyBox.draw(bodyShader);
-			totalRenderedObjects++;
-		}
-
-		// Torso (static)
-		{
-			glm::mat4 torsoModel = glm::mat4(1.0f);
-			torsoModel = glm::translate(torsoModel, playerPos);
-			torsoModel = glm::rotate(torsoModel, glm::radians(playerYaw), glm::vec3(0, 1, 0));
-			torsoModel = glm::translate(torsoModel, glm::vec3(0.0f, 0.2f, -0.15f)); // position above legs
-			torsoModel = glm::scale(torsoModel, glm::vec3(0.15f, 0.25f, 0.12f)); // width, height, depth
-
-			glm::mat4 torsoMVP = ProjectionMatrix * ViewMatrix * torsoModel;
-			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &torsoMVP[0][0]);
-			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &torsoModel[0][0]);
-
-			bodyBox.draw(bodyShader);
-			totalRenderedObjects++;
-		}
-
-		// Arms with swinging animation
-
-		// Left arm
-		{
-			glm::mat4 armModel = glm::mat4(1.0f);
-			armModel = glm::translate(armModel, playerPos);
-			armModel = glm::rotate(armModel, glm::radians(playerYaw), glm::vec3(0, 1, 0));
-			armModel = glm::translate(armModel, glm::vec3(-0.5f, 0.2f, 0.0f)); // offset from torso
-
-			//armModel = glm::rotate(armModel, glm::radians(180.0f), glm::vec3(1, 0, 0)); // flip the arm
-
-			// Pivot at shoulder for rotation
-			armModel = glm::translate(armModel, glm::vec3(0.0f, 0.0f, 0.0f));
-			armModel = glm::rotate(armModel, -sin(walkCycle) * glm::radians(400.0f), glm::vec3(1, 0, 0));
-			armModel = glm::translate(armModel, glm::vec3(0.0f, 0.0f, 0.0f));
-
-			armModel = glm::scale(armModel, glm::vec3(0.04f, 0.25f, 0.04f)); // width, height, depth
-
-			glm::mat4 armMVP = ProjectionMatrix * ViewMatrix * armModel;
-			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &armMVP[0][0]);
-			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &armModel[0][0]);
-
-			bodyBox.draw(bodyShader);
-			totalRenderedObjects++;
-		}
-
-		// Right arm
-		{
-			glm::mat4 armModel = glm::mat4(1.0f);
-			armModel = glm::translate(armModel, playerPos);
-			armModel = glm::rotate(armModel, glm::radians(playerYaw), glm::vec3(0, 1, 0));
-			armModel = glm::translate(armModel, glm::vec3(0.5f, 0.2f, 0.0f)); // offset from torso
-
-			// Pivot at shoulder for rotation
-			armModel = glm::translate(armModel, glm::vec3(0.0f, -0.25f, 0.0f));
-			armModel = glm::rotate(armModel, sin(walkCycle) * glm::radians(400.0f), glm::vec3(1, 0, 0));
-			armModel = glm::translate(armModel, glm::vec3(0.0f, 0.25f, 0.0f));
-
-			armModel = glm::scale(armModel, glm::vec3(0.04f, 0.25f, 0.04f)); // width, height, depth
-
-			glm::mat4 armMVP = ProjectionMatrix * ViewMatrix * armModel;
-			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &armMVP[0][0]);
-			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &armModel[0][0]);
-
-			bodyBox.draw(bodyShader);
-			totalRenderedObjects++;
-		}
-
-
-		// Legs with swinging animation
-
-		// Left leg
-		{
-			glm::mat4 legModel = glm::mat4(1.0f);
-			legModel = glm::translate(legModel, playerPos);
-			legModel = glm::rotate(legModel, glm::radians(playerYaw), glm::vec3(0, 1, 0));
-			legModel = glm::translate(legModel, glm::vec3(0.2f, -0.5f, 0.0f)); // hip offset
-
-			legModel = glm::translate(legModel, glm::vec3(0.0f, 0.1f, 0.0f)); // pivot to top of leg
-			legModel = glm::rotate(legModel, sin(walkCycle) * glm::radians(360.0f), glm::vec3(1, 0, 0));
-			legModel = glm::translate(legModel, glm::vec3(0.0f, -0.1f, 0.0f)); // move pivot back
-
-			legModel = glm::scale(legModel, glm::vec3(0.05f, 0.2f, 0.05f));
-
-			glm::mat4 legMVP = ProjectionMatrix * ViewMatrix * legModel;
-			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &legMVP[0][0]);
-			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &legModel[0][0]);
-
-			bodyBox.draw(bodyShader);
-			totalRenderedObjects++;
-		}
-
-		// Right leg
-		{
-			glm::mat4 legModel = glm::mat4(1.0f);
-			legModel = glm::translate(legModel, playerPos);
-			legModel = glm::rotate(legModel, glm::radians(playerYaw), glm::vec3(0, 1, 0));
-			legModel = glm::translate(legModel, glm::vec3(-0.2f, -0.5f, 0.0f)); // hip offset opposite
-
-			legModel = glm::translate(legModel, glm::vec3(0.0f, 0.1f, 0.0f));
-			legModel = glm::rotate(legModel, -sin(walkCycle) * glm::radians(360.0f), glm::vec3(1, 0, 0));
-			legModel = glm::translate(legModel, glm::vec3(0.0f, -0.1f, 0.0f));
-
-			legModel = glm::scale(legModel, glm::vec3(0.05f, 0.2f, 0.05f));
-
-			glm::mat4 legMVP = ProjectionMatrix * ViewMatrix * legModel;
-			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &legMVP[0][0]);
-			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &legModel[0][0]);
-
-			bodyBox.draw(bodyShader);
-			totalRenderedObjects++;
-		}*/
-
 		bodyShader.use();
 		//glUniform3f(glGetUniformLocation(bodyShader.getId(), "bodyColor"), 0.0f, 1.0f, 0.0f
 
@@ -1390,23 +1276,6 @@ int main()
 				m.walkCycle += moveStep * player.walkSpeedFactor;
 			}
 
-			
-
-			/*// Crosshair kill logic
-			if (shotFired && IsMonsterTargeted(m, rayOrigin, rayDir, 2.0f) && distanceToPlayer <= player.maxHitDistance)
-			{
-				std::cout << ">>> MONSTER KILLED! <<<" << std::endl;
-				player.score += 500;
-
-				// Remove monster
-				monsters.erase(monsters.begin() + i);
-				i--;
-
-				// false if not to kill multiple enemies with one bullet
-				shotFired = false;
-
-				continue;
-			}*/
 
 			// Base model transform (position + yaw)
 			glm::mat4 humanModel = glm::mat4(1.0f);
@@ -1675,10 +1544,32 @@ int main()
 			openMenu = false;
 		}
 
-		if (gui.changeBackground)
-			glClearColor(0.8f, 0.2f, 0.2f, 1.0f);
+		// Almost works
+		if (gui.changeBackground && !lastChange)
+			changeScreen = !changeScreen;
+		lastChange = gui.changeBackground;
+		
+		static float cycleFactor = 0.0f;
+		float transitionSpeed = 1.0f;
+
+		if (gui.dayNightCycle)
+			cycleFactor += transitionSpeed * deltaTime;
 		else
-			glClearColor(0.2f, 0.8f, 1.0f, 1.0f);
+			cycleFactor -= transitionSpeed * deltaTime;
+
+		cycleFactor = glm::clamp(cycleFactor, 0.0f, 1.0f);
+
+		glm::vec3 skyDay = glm::vec3(0.2f, 0.8f, 1.0f);   
+		glm::vec3 skyNight = glm::vec3(0.05f, 0.05f, 0.1f); 
+
+		glm::vec3 sunDay = glm::vec3(1.0f, 1.0f, 1.0f);  
+		glm::vec3 moonNight = glm::vec3(0.2f, 0.2f, 0.5f);
+
+		glm::vec3 currentSky = glm::mix(skyDay, skyNight, cycleFactor);
+		glm::vec3 currentSun = glm::mix(sunDay, moonNight, cycleFactor);
+
+		glClearColor(currentSky.x, currentSky.y, currentSky.z, 1.0f);
+		lightColor = currentSun;
 
 		window.update();
 	}
