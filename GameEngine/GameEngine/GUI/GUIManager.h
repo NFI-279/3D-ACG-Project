@@ -40,6 +40,7 @@ public:
     }
 
     void RenderVictoryScreen(float scale);
+    void RenderDeathScreen(float scale);
 
     // crosshair at the center of the screen
     void DrawCrosshair(float scale);

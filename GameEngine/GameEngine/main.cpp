@@ -14,6 +14,8 @@
 int questBulletsCollected = 0;
 int questMonstersKilled = 0;
 
+float deathScreenTimer = 0.0f;
+
 struct Wall {
 	glm::vec3 localPos;   
 	bool rotateY;      
@@ -946,7 +948,7 @@ int main()
 		// Mouse Input
 		double xpos, ypos;
 		glfwGetCursorPos(window.getWindow(), &xpos, &ypos);
-		if (!gui.showGUI && !gui.isGamePaused && !gui.questManager.IsGameFinished())
+		if (!gui.showGUI && !gui.isGamePaused && !gui.questManager.IsGameFinished() && player.hp > 0.0f)
 		{
 			float xoffset = (xpos - lastX) * mouseSensitivity;
 			float yoffset = (lastY - ypos) * mouseSensitivity; // Reversed since y-coordinates range from bottom to top
@@ -974,7 +976,7 @@ int main()
 
 		// Player Movement
 		glm::vec3 moveDir(0.0f);
-		if (!gui.questManager.IsGameFinished())
+		if (!gui.questManager.IsGameFinished() && player.hp > 0.0f)
 		{
 			if (window.isPressed(GLFW_KEY_W)) moveDir += camForward;
 			if (window.isPressed(GLFW_KEY_S)) moveDir -= camForward;
@@ -1503,14 +1505,22 @@ int main()
 
 		// 2. Death / Respawn Check
 		if (player.hp <= 0.0f) {
-			std::cout << ">>> YOU DIED! Respawning... <<<" << std::endl;
-			player.hp = player.maxHp;
-			player.score = 0; // Reset Score
-			player.bulletCount = 0;
-			player.trashCount = 0; // Clear Backpack
-			player.antidoteCount = 0; // Clear Antidotes
-			player.position = glm::vec3(-176.0f + 6.0f, -19.0f, 137.0f); // Reset Position
-			monsters.clear(); // Clear enemies
+			std::cout << ">>> YOU DIED! <<<" << std::endl;
+
+			deathScreenTimer += deltaTime;
+			if (deathScreenTimer > 3.0f)
+			{
+				std::cout << ">>> RESPAWNING NOW <<<" << std::endl;
+				player.hp = player.maxHp;
+				player.score = 0;
+				player.bulletCount = 0;
+				player.trashCount = 0;
+				player.antidoteCount = 0;
+				player.position = glm::vec3(-176.0f + 6.0f, -19.0f, 137.0f);
+				monsters.clear();
+
+				deathScreenTimer = 0.0f;
+			}
 		}
 
 		// 3. Debug Print (Every 1 sec approx, or use ImGui text if available)

@@ -486,6 +486,53 @@ void GUIManager::RenderVictoryScreen(float scale)
     ImGui::PopStyleVar();
 }
 
+void GUIManager::RenderDeathScreen(float scale)
+{
+    ImGuiIO& io = ImGui::GetIO();
+    ImDrawList* draw = ImGui::GetBackgroundDrawList();
+
+    draw->AddRectFilled(ImVec2(0, 0), io.DisplaySize, IM_COL32(50, 0, 0, 150));
+
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+
+    ImFont* useHeader = (fontHeader != nullptr) ? fontHeader : ImGui::GetFont();
+
+    ImGui::PushFont(useHeader);
+
+    const char* title = "YOU DIED";
+    const char* icon = ICON_FA_SKULL;
+
+    float baseSize = (fontHeader != nullptr) ? 17.0f : 13.0f;
+    float fontSize = baseSize * scale * 3.0f; // Text is 3x
+    float iconSize = baseSize * scale * 4.0f; // Icon is 4x (Bigger than text)
+
+    ImVec2 titleSz = useHeader->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, title);
+    ImVec2 iconSz = useHeader->CalcTextSizeA(iconSize, FLT_MAX, 0.0f, icon);
+
+
+    float iconY = (center.y - 100 * scale) - iconSz.y - (20 * scale);
+
+    draw->AddText(useHeader, iconSize,
+        ImVec2(center.x - iconSz.x / 2 + (4 * scale), iconY + (4 * scale)),
+        IM_COL32(0, 0, 0, 255), icon);
+
+    draw->AddText(useHeader, iconSize,
+        ImVec2(center.x - iconSz.x / 2, iconY),
+        IM_COL32(200, 20, 20, 255), icon);
+
+
+    // Title Shadow
+    draw->AddText(useHeader, fontSize,
+        ImVec2(center.x - titleSz.x / 2 + (4 * scale), center.y - 100 * scale + (4 * scale)),
+        IM_COL32(0, 0, 0, 255), title);
+
+    // Title Main
+    draw->AddText(useHeader, fontSize,
+        ImVec2(center.x - titleSz.x / 2, center.y - 100 * scale),
+        IM_COL32(200, 20, 20, 255), title);
+
+    ImGui::PopFont();
+}
 
 void GUIManager::RenderStatsHUD(float scale)
 {
@@ -926,6 +973,15 @@ void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenH
     // Safety clamp (don't let it get too small on weird windows)
     if (uiScale < 0.5f) uiScale = 0.5f;
 
+    if (this->playerHealth <= 0)
+    {
+        RenderDeathScreen(uiScale);
+
+        // Finalize and return early (Don't draw HUD/Crosshair)
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        return;
+    }
 
     if (questManager.IsGameFinished())
     {
