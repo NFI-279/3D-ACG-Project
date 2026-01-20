@@ -39,6 +39,7 @@ public:
         logs.push_back(message);
     }
 
+    void RenderVictoryScreen(float scale);
 
     // crosshair at the center of the screen
     void DrawCrosshair(float scale);

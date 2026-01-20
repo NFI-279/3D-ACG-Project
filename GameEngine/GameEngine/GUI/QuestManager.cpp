@@ -11,7 +11,7 @@ void QuestManager::Init() {
     AddQuest("Stockpile Ammunition", "You are defenseless out here. Scavenge 5 bullets from the ruins before they find you.");
     AddQuest("Thin the Herd", "There are too many of them. Kill 3 monsters to buy yourself some time.");
     AddQuest("Buried Secrets", "Rumor has it the cure was hidden inside the dead tree. Smash it open.");
-    AddQuest("Desperate Measures", "We need chemicals. Scavenge 5 scrap items to mix a makeshift antidote.");
+    AddQuest("Desperate Measures", "We need chemicals. Gather 5 garbage bags to mix a makeshift antidote.");
     AddQuest("The Last Hope", "This is our only chance. Inject a monster (Right Click) with the serum. Pray it works.");
 
     if (!quests.empty()) {
@@ -19,6 +19,11 @@ void QuestManager::Init() {
         quests[0].isActive = true;
         isAnnouncementActive = true;
     }
+}
+
+bool QuestManager::IsGameFinished() const {
+    // Game is done if we went past the last index
+    return currentQuestIndex >= quests.size();
 }
 
 void QuestManager::AddQuest(std::string title, std::string desc) {

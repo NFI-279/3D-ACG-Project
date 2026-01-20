@@ -25,6 +25,7 @@ public:
 
     const char* GetCurrentTitle();
     const char* GetCurrentDescription();
+    bool IsGameFinished() const;
     
     int GetCurrentIndex() const { return currentQuestIndex; } // To check progress in Main
 

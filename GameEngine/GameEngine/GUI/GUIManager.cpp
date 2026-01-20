@@ -228,7 +228,6 @@ void CenterIconWithShadow(const char* icon, float scale, ImVec4 color) {
     ImGui::Dummy(ImVec2(iconSize.x, iconSize.y));
 }
 
-
 void GUIManager::RenderPauseMenu(float scale)
 {
     if (!isGamePaused) return;
@@ -239,21 +238,21 @@ void GUIManager::RenderPauseMenu(float scale)
     bgDraw->AddRectFilled(ImVec2(0, 0), io.DisplaySize, IM_COL32(0, 0, 0, 220));
 
     float width = 420.0f * scale;
-    float height = 480.0f * scale;
+    float height = 520.0f * scale;
 
-    static bool showControls = false;
+    // 0 = Main, 1 = Controls, 2 = Story
+    static int menuState = 0;
 
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSize(ImVec2(width, height));
 
+    // Styles
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.04f, 0.04f, 0.05f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 1.0f, 1.0f, 0.08f));
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1, 1, 1, 0.02f));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1, 1, 1, 0.08f));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1, 1, 1, 0.12f));
-
     ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.0f, 0.5f));
-
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(35.0f * scale, 35.0f * scale));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f * scale);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 10.0f * scale));
@@ -262,22 +261,18 @@ void GUIManager::RenderPauseMenu(float scale)
     {
         ImGui::SetWindowFontScale(scale);
         ImDrawList* winDraw = ImGui::GetWindowDrawList();
-        ImVec2 winPos = ImGui::GetWindowPos();
-
         ImVec4 goldCol = ImVec4(0.85f, 0.75f, 0.45f, 1.0f);
         ImVec4 greyCol = ImVec4(0.6f, 0.6f, 0.65f, 1.0f);
         ImVec4 whiteCol = ImVec4(0.95f, 0.95f, 0.95f, 1.0f);
-        ImVec4 darkBg = ImVec4(0.0f, 0.0f, 0.0f, 0.3f); // For sub-sections
+        ImVec4 darkBg = ImVec4(0.0f, 0.0f, 0.0f, 0.3f);
 
-        // --- HEADER ---
+        // HEADER
         ImVec2 p = ImGui::GetCursorScreenPos();
         float iconSize = 10.0f * scale;
 
         winDraw->AddQuadFilled(
-            ImVec2(p.x, p.y + iconSize / 2),
-            ImVec2(p.x + iconSize / 2, p.y),
-            ImVec2(p.x + iconSize, p.y + iconSize / 2),
-            ImVec2(p.x + iconSize / 2, p.y + iconSize),
+            ImVec2(p.x, p.y + iconSize / 2), ImVec2(p.x + iconSize / 2, p.y),
+            ImVec2(p.x + iconSize, p.y + iconSize / 2), ImVec2(p.x + iconSize / 2, p.y + iconSize),
             ImGui::ColorConvertFloat4ToU32(goldCol)
         );
 
@@ -290,15 +285,18 @@ void GUIManager::RenderPauseMenu(float scale)
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() - (5.0f * scale));
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + iconSize + (12.0f * scale));
         ImGui::PushFont(fontHeader);
-        ImGui::TextColored(whiteCol, showControls ? "Keybinds" : "Menu");
+
+        // Dynamic Title
+        const char* titles[] = { "Menu", "Keybinds", "Story" };
+        ImGui::TextColored(whiteCol, titles[menuState]);
         ImGui::PopFont();
 
         ImGui::Spacing(); ImGui::Spacing();
 
         // MAIN MENU
-        if (!showControls)
+        if (menuState == 0)
         {
-            // MISSION BOX
+            // Mission Box
             float contentW = ImGui::GetContentRegionAvail().x;
             ImVec2 boxStart = ImGui::GetCursorScreenPos();
 
@@ -316,11 +314,10 @@ void GUIManager::RenderPauseMenu(float scale)
             ImGui::PopStyleColor();
             ImGui::PopFont();
 
-            ImGui::Dummy(ImVec2(0, 10.0f * scale)); // Padding inside box
+            ImGui::Dummy(ImVec2(0, 10.0f * scale));
             ImVec2 boxEnd = ImGui::GetCursorScreenPos();
             boxEnd.x += contentW;
 
-            // Draw the Dark Box behind the text we just wrote
             winDraw->AddRectFilled(
                 ImVec2(boxStart.x - 10 * scale, boxStart.y - 10 * scale),
                 ImVec2(boxEnd.x + 10 * scale, boxEnd.y),
@@ -328,23 +325,21 @@ void GUIManager::RenderPauseMenu(float scale)
                 4.0f * scale
             );
 
-            ImGui::Spacing();
-            ImGui::Separator();
-            ImGui::Spacing();
+            ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
 
+            // Buttons
             float btnHeight = 40.0f * scale;
             ImGui::PushFont(fontUI);
-
-            // Return
             ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10 * scale, 0));
 
             if (ImGui::Button("Return to Game", ImVec2(-1, btnHeight))) {
                 isGamePaused = false;
             }
-
-            // Controls
             if (ImGui::Button("Controls", ImVec2(-1, btnHeight))) {
-                showControls = true;
+                menuState = 1;
+            }
+            if (ImGui::Button("Mission Archive", ImVec2(-1, btnHeight))) {
+                menuState = 2;
             }
 
             // Display Mode
@@ -352,34 +347,27 @@ void GUIManager::RenderPauseMenu(float scale)
             if (ImGui::Button("Display Mode", ImVec2(-1, btnHeight))) {
                 isFullscreen = !isFullscreen;
             }
-
             ImVec2 btnMax = ImGui::GetItemRectMax();
-            ImVec2 btnMin = ImGui::GetItemRectMin();
-            float textY = btnMin.y + (btnHeight - ImGui::GetFontSize()) / 2.0f;
-
+            float textY = ImGui::GetItemRectMin().y + (btnHeight - ImGui::GetFontSize()) / 2.0f;
             winDraw->AddText(ImVec2(btnMax.x - ImGui::CalcTextSize(modeText).x - 15 * scale, textY), ImGui::ColorConvertFloat4ToU32(goldCol), modeText);
 
-            // Exit : Push Red Text for just this button
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.3f, 0.3f, 1.0f));
-            if (ImGui::Button("Exit Game", ImVec2(-1, btnHeight))) {
-                exit(0);
-            }
-            ImGui::PopStyleColor(); // Pop Red Text
+            if (ImGui::Button("Exit Game", ImVec2(-1, btnHeight))) { exit(0); }
+            ImGui::PopStyleColor();
 
-            ImGui::PopStyleVar(); // Pop FramePadding
+            ImGui::PopStyleVar();
             ImGui::PopFont();
         }
+
         // CONTROLS
-        else
+        else if (menuState == 1)
         {
             ImGui::PushFont(fontMono);
             if (ImGui::BeginTable("KeysTable", 2, ImGuiTableFlags_SizingStretchSame))
             {
                 auto DrawKeyRow = [&](const char* act, const char* key) {
-                    ImGui::TableNextColumn();
-                    ImGui::TextColored(greyCol, "%s", act);
-                    ImGui::TableNextColumn();
-                    TextRightAligned(key, goldCol);
+                    ImGui::TableNextColumn(); ImGui::TextColored(greyCol, "%s", act);
+                    ImGui::TableNextColumn(); TextRightAligned(key, goldCol);
                     };
                 DrawKeyRow("Movement", "[ W A S D ]");
                 DrawKeyRow("Look", "[ MOUSE ]");
@@ -390,15 +378,32 @@ void GUIManager::RenderPauseMenu(float scale)
                 ImGui::EndTable();
             }
             ImGui::PopFont();
+        }
+        // STORY
+        else if (menuState == 2)
+        {
+            ImGui::PushFont(fontUI);
+            ImGui::PushStyleColor(ImGuiCol_Text, greyCol);
 
+            ImGui::TextWrapped("The year is 2084. A mysterious pathogen known as 'The Blight' has corrupted the local ecosystem.");
+            ImGui::Spacing();
+            ImGui::TextWrapped("As a Hazmat Operative, your mission is to enter the Containment Zone, synthesize a cure using local resources, and neutralize the infected hosts.");
+            ImGui::Spacing();
+            ImGui::TextWrapped("Intel suggests the source of the infection lies within the Ancient Tree at the center of the town.");
+
+            ImGui::PopStyleColor();
+            ImGui::PopFont();
+        }
+
+        if (menuState > 0)
+        {
             ImGui::Dummy(ImVec2(0, 30.0f * scale));
             ImGui::Separator();
             ImGui::Spacing();
-
             ImGui::PushFont(fontUI);
             ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10 * scale, 0));
             if (ImGui::Button("Back", ImVec2(-1, 40.0f * scale))) {
-                showControls = false;
+                menuState = 0;
             }
             ImGui::PopStyleVar();
             ImGui::PopFont();
@@ -406,9 +411,81 @@ void GUIManager::RenderPauseMenu(float scale)
     }
     ImGui::End();
 
-    ImGui::PopStyleVar(4); // Padding, Rounding, Spacing, TextAlign
+    ImGui::PopStyleVar(4);
     ImGui::PopStyleColor(5);
 }
+
+void GUIManager::RenderVictoryScreen(float scale)
+{
+    ImGuiIO& io = ImGui::GetIO();
+
+    ImDrawList* draw = ImGui::GetBackgroundDrawList();
+
+    // Full Screen Overlay
+    draw->AddRectFilled(ImVec2(0, 0), io.DisplaySize, IM_COL32(0, 0, 0, 240));
+
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+
+    // Fonts 
+    ImFont* useHeader = (fontHeader != nullptr) ? fontHeader : ImGui::GetFont();
+    ImFont* useMono = (fontMono != nullptr) ? fontMono : ImGui::GetFont();
+
+    ImGui::PushFont(useHeader);
+    const char* title = "MISSION ACCOMPLISHED";
+
+    float baseHeaderSize = (fontHeader != nullptr) ? 17.0f : 13.0f;
+    float fontSize = baseHeaderSize * scale * 2.0f;
+
+    ImVec2 titleSz = useHeader->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, title);
+
+    draw->AddText(useHeader, fontSize,
+        ImVec2(center.x - titleSz.x / 2, center.y - 100 * scale),
+        IM_COL32(255, 215, 0, 255), title);
+    ImGui::PopFont();
+
+    // Final Score
+    ImGui::PushFont(useMono);
+    char scoreText[32]; sprintf_s(scoreText, "FINAL SCORE: %d", playerScore);
+
+    float baseMonoSize = (fontMono != nullptr) ? 15.0f : 13.0f;
+    float scoreSize = baseMonoSize * scale * 1.5f;
+    ImVec2 scoreSz = useMono->CalcTextSizeA(scoreSize, FLT_MAX, 0.0f, scoreText);
+
+    draw->AddText(useMono, scoreSize,
+        ImVec2(center.x - scoreSz.x / 2, center.y - 40 * scale),
+        IM_COL32(200, 200, 200, 255), scoreText);
+    ImGui::PopFont();
+
+    // Exit Button
+    ImGui::SetNextWindowPos(ImVec2(center.x - 100 * scale, center.y + 50 * scale));
+    ImGui::SetNextWindowSize(ImVec2(200 * scale, 60 * scale));
+
+    // Make window background transparent so we only see the button
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+
+    ImGuiWindowFlags btnFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize;
+
+    if (ImGui::Begin("VictoryBtn", nullptr, btnFlags))
+    {
+        ImGui::SetWindowFontScale(scale);
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 0.8f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.6f, 0.1f, 0.1f, 1.0f));
+
+        if (ImGui::Button("EXIT MISSION", ImVec2(200 * scale, 50 * scale))) {
+            exit(0); // This closes the console and the window
+        }
+
+        ImGui::PopStyleColor(3);
+    }
+    ImGui::End();
+
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar();
+}
+
 
 void GUIManager::RenderStatsHUD(float scale)
 {
@@ -848,6 +925,20 @@ void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenH
 
     // Safety clamp (don't let it get too small on weird windows)
     if (uiScale < 0.5f) uiScale = 0.5f;
+
+
+    if (questManager.IsGameFinished())
+    {
+        // Render ONLY the victory screen
+        RenderVictoryScreen(uiScale);
+
+        // Finalize rendering and exit this function early
+        // We do NOT want to render HUD, Crosshair, or Debug Panel
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        return;
+    }
+
 
     float targetAlpha = questManager.IsAnnouncementActive() ? 0.0f : 1.0f;
     float dt = ImGui::GetIO().DeltaTime;

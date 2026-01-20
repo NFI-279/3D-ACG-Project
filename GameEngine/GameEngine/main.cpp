@@ -306,7 +306,6 @@ int main()
 	glfwGetCursorPos(window.getWindow(), &lastX, &lastY);
 	
 
-
 	glClearColor(0.2f, 0.8f, 1.0f, 1.0f);
 
 	//building and compiling shader program
@@ -519,7 +518,7 @@ int main()
 	int fpsFrameCount = 0;
 	float displayFPS = 0.0f;
 
-	//check if we close the window or press the escape button
+	//check if we close the window
 	while (glfwWindowShouldClose(window.getWindow()) == 0)
 	{
 		window.clear();
@@ -582,6 +581,11 @@ int main()
 			}
 			// Update history
 			wasPaused = gui.isGamePaused;
+		}
+
+		if (gui.questManager.IsGameFinished())
+		{
+			glfwSetInputMode(window.getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 		}
 
 		// --- FULLSCREEN SWITCHING LOGIC ---
@@ -942,7 +946,7 @@ int main()
 		// Mouse Input
 		double xpos, ypos;
 		glfwGetCursorPos(window.getWindow(), &xpos, &ypos);
-		if (!gui.showGUI && !gui.isGamePaused)
+		if (!gui.showGUI && !gui.isGamePaused && !gui.questManager.IsGameFinished())
 		{
 			float xoffset = (xpos - lastX) * mouseSensitivity;
 			float yoffset = (lastY - ypos) * mouseSensitivity; // Reversed since y-coordinates range from bottom to top
@@ -970,12 +974,13 @@ int main()
 
 		// Player Movement
 		glm::vec3 moveDir(0.0f);
-		//if (!gui.showGUI)
-		//{
-		if (window.isPressed(GLFW_KEY_W)) moveDir += camForward;
-		if (window.isPressed(GLFW_KEY_S)) moveDir -= camForward;
-		if (window.isPressed(GLFW_KEY_A)) moveDir -= camRight;
-		if (window.isPressed(GLFW_KEY_D)) moveDir += camRight;
+		if (!gui.questManager.IsGameFinished())
+		{
+			if (window.isPressed(GLFW_KEY_W)) moveDir += camForward;
+			if (window.isPressed(GLFW_KEY_S)) moveDir -= camForward;
+			if (window.isPressed(GLFW_KEY_A)) moveDir -= camRight;
+			if (window.isPressed(GLFW_KEY_D)) moveDir += camRight;
+		}
 
 		if (glm::length(moveDir) > 0.001f)
 		{
