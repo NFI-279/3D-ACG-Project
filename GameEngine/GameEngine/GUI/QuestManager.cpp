@@ -8,11 +8,11 @@
 
 void QuestManager::Init() {
     // --- THE 5 STORY TASKS ---
-    AddQuest("Locate the Signal", "The distress beacon is coming from the North Ridge.");
-    AddQuest("Power the Generator", "Find 3 Fuel Cells scattered in the ruins.");
-    AddQuest("Decrypt Data Terminal", "The password is hidden in the Captain's log.");
-    AddQuest("Open the Bunker Door", "Use the terminal to unlock the main gate.");
-    AddQuest("Secure the Artifact", "Retrieve the object and return to the extraction point.");
+    AddQuest("Stockpile Ammunition", "You are defenseless out here. Scavenge 5 bullets from the ruins before they find you.");
+    AddQuest("Thin the Herd", "There are too many of them. Kill 3 monsters to buy yourself some time.");
+    AddQuest("Buried Secrets", "Rumor has it the cure was hidden inside the dead tree. Smash it open.");
+    AddQuest("Desperate Measures", "We need chemicals. Scavenge 5 scrap items to mix a makeshift antidote.");
+    AddQuest("The Last Hope", "This is our only chance. Inject a monster (Right Click) with the serum. Pray it works.");
 
     if (!quests.empty()) {
         currentQuestIndex = 0;

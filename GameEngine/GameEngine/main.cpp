@@ -10,6 +10,10 @@
 #include "GUI/GUIManager.h"
 #include "Mountain/mountain.h"
 
+// QUEST TRACKING
+int questBulletsCollected = 0;
+int questMonstersKilled = 0;
+
 struct Wall {
 	glm::vec3 localPos;   
 	bool rotateY;      
@@ -664,6 +668,15 @@ int main()
 					player.score += 500;
 					monsters.erase(monsters.begin() + i);
 					hit = true;
+
+					// --- QUEST 1: KILL 3 MONSTERS ---
+					if (gui.questManager.GetCurrentIndex() == 1) {
+						questMonstersKilled++;
+						if (questMonstersKilled >= 3) {
+							gui.questManager.CompleteCurrentQuest();
+						}
+					}
+
 					break;
 				}
 			}
@@ -689,6 +702,13 @@ int main()
 					player.score += 500;
 					monsters.erase(monsters.begin() + i);
 					hit = true;
+
+					// --- QUEST 4: TEST CURE (GAME WIN) ---
+					if (gui.questManager.GetCurrentIndex() == 4) {
+						gui.questManager.CompleteCurrentQuest();
+						std::cout << ">>> MISSION ACCOMPLISHED <<<" << std::endl;
+					}
+
 					break;
 				}
 			}
@@ -707,6 +727,8 @@ int main()
 
 			if (tree.hitCooldown > 0.0f)
 				tree.hitCooldown -= deltaTime;
+
+			if (gui.questManager.GetCurrentIndex() != 2) continue;
 
 			if (justLeftClicked && IsTreeTargeted(tree, rayOrigin, rayDir))
 			{
@@ -740,6 +762,11 @@ int main()
 			recipeNote.visible = false;
 			player.hasRecipe = true;
 			std::cout << "You found a recipe!" << std::endl;
+
+			// QUEST 2 COMPLETE
+			if (gui.questManager.GetCurrentIndex() == 2) {
+				gui.questManager.CompleteCurrentQuest();
+			}
 		}
 
 		if (player.hasRecipe && !trashSpawned) {
@@ -804,6 +831,11 @@ int main()
 						player.antidoteCount++;   // Gain 1 Antidote
 						player.score += 350; // Bonus Score for crafting
 						std::cout << ">>> CRAFTED ANTIDOTE! Total: " << player.antidoteCount << " <<<" << std::endl;
+
+						// QUEST 3: SYNTHESIZE CURE
+						if (gui.questManager.GetCurrentIndex() == 3) {
+							gui.questManager.CompleteCurrentQuest();
+						}
 					}
 					it = trash.erase(it);
 				} // TODO : Edge case : Backpack is Full (5/5) AND we couldn't craft (Ammo Full)
@@ -840,11 +872,18 @@ int main()
 					player.score += 200;
 					std::cout << "Bullet collected! Ammo: " << player.bulletCount << std::endl;
 
+					// --- QUEST 0: SCAVENGE AMMO ---
+					if (gui.questManager.GetCurrentIndex() == 0) {
+						questBulletsCollected++;
+						if (questBulletsCollected >= 5) {
+							gui.questManager.CompleteCurrentQuest();
+						}
+					}
+
 					it = bullets.erase(it);
 				}
 				else
 				{
-					// Full ammo, ignore pickup
 					++it;
 				}
 			}
@@ -1407,17 +1446,6 @@ int main()
 		}
 
 
-		// --- HEALTH & VISUALS UPDATE ---
-
-		// 1. Red Flash Effect
-		if (player.damageFlashTimer > 0.0f) {
-			player.damageFlashTimer -= deltaTime;
-			gui.changeBackground = true; // Turn background RED
-		}
-		else {
-			gui.changeBackground = false; // Reset to BLUE
-		}
-
 		// 2. Death / Respawn Check
 		if (player.hp <= 0.0f) {
 			std::cout << ">>> YOU DIED! Respawning... <<<" << std::endl;
@@ -1550,21 +1578,6 @@ int main()
 
 		gui.Render(player.position, window.getWidth(), window.getHeight(), displayFPS, totalRenderedObjects,
 			player.score, (int)player.hp, player.trashCount, player.antidoteCount, player.bulletCount);
-
-
-
-		// TEMPORARY DEBUG KEY
-		static bool fPressed = false;
-		if (window.isPressed(GLFW_KEY_F)) {
-			if (!fPressed) {
-				gui.questManager.CompleteCurrentQuest();
-				gui.AddLog("[DEBUG] Force Completed Quest"); // Log it so you know
-				fPressed = true;
-			}
-		}
-		else {
-			fPressed = false;
-		}
 
 		if (window.isPressed(GLFW_KEY_INSERT) && !gui.isGamePaused)
 		{

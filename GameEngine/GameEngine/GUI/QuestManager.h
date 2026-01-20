@@ -25,6 +25,8 @@ public:
 
     const char* GetCurrentTitle();
     const char* GetCurrentDescription();
+    
+    int GetCurrentIndex() const { return currentQuestIndex; } // To check progress in Main
 
 private:
     std::vector<QuestTask> quests;

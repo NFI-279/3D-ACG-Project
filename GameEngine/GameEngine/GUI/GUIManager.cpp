@@ -234,47 +234,46 @@ void GUIManager::RenderPauseMenu(float scale)
     if (!isGamePaused) return;
 
     ImGuiIO& io = ImGui::GetIO();
-
     ImDrawList* bgDraw = ImGui::GetBackgroundDrawList();
 
-    // DARK BLUR OVERLAY
-    bgDraw->AddRectFilled(
-        ImVec2(0, 0),
-        ImVec2(io.DisplaySize.x, io.DisplaySize.y),
-        IM_COL32(0, 0, 0, 220)
-    );
+    bgDraw->AddRectFilled(ImVec2(0, 0), io.DisplaySize, IM_COL32(0, 0, 0, 220));
 
-    // CARD DIMENSIONS
     float width = 420.0f * scale;
-    float height = 440.0f * scale;
+    float height = 480.0f * scale;
+
+    static bool showControls = false;
 
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSize(ImVec2(width, height));
 
-    // Styles
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.04f, 0.04f, 0.05f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 1.0f, 1.0f, 0.08f));
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1, 1, 1, 0.05f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1, 1, 1, 0.1f));
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1, 1, 1, 0.02f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1, 1, 1, 0.08f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1, 1, 1, 0.12f));
+
+    ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.0f, 0.5f));
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(35.0f * scale, 35.0f * scale));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f * scale);
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 15.0f * scale));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 10.0f * scale));
 
     if (ImGui::Begin("PauseMenu", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove))
     {
         ImGui::SetWindowFontScale(scale);
+        ImDrawList* winDraw = ImGui::GetWindowDrawList();
+        ImVec2 winPos = ImGui::GetWindowPos();
+
         ImVec4 goldCol = ImVec4(0.85f, 0.75f, 0.45f, 1.0f);
         ImVec4 greyCol = ImVec4(0.6f, 0.6f, 0.65f, 1.0f);
         ImVec4 whiteCol = ImVec4(0.95f, 0.95f, 0.95f, 1.0f);
+        ImVec4 darkBg = ImVec4(0.0f, 0.0f, 0.0f, 0.3f); // For sub-sections
 
-        // HEADER
+        // --- HEADER ---
         ImVec2 p = ImGui::GetCursorScreenPos();
         float iconSize = 10.0f * scale;
 
-        // Diamond Icon
-        ImGui::GetWindowDrawList()->AddQuadFilled(
+        winDraw->AddQuadFilled(
             ImVec2(p.x, p.y + iconSize / 2),
             ImVec2(p.x + iconSize / 2, p.y),
             ImVec2(p.x + iconSize, p.y + iconSize / 2),
@@ -282,78 +281,132 @@ void GUIManager::RenderPauseMenu(float scale)
             ImGui::ColorConvertFloat4ToU32(goldCol)
         );
 
-        // "GAME PAUSED" Label
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + iconSize + (12.0f * scale));
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() - (2.0f * scale));
         ImGui::PushFont(fontMono);
         ImGui::TextColored(greyCol, "GAME PAUSED");
         ImGui::PopFont();
 
-        // "Menu" Title
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() - (5.0f * scale));
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + iconSize + (12.0f * scale));
         ImGui::PushFont(fontHeader);
-        ImGui::TextColored(whiteCol, "Menu");
+        ImGui::TextColored(whiteCol, showControls ? "Keybinds" : "Menu");
         ImGui::PopFont();
 
         ImGui::Spacing(); ImGui::Spacing();
 
-        // CURRENT MISSION
-        ImGui::PushFont(fontMono);
-        ImGui::TextColored(goldCol, "CURRENT MISSION");
-        ImGui::PopFont();
+        // MAIN MENU
+        if (!showControls)
+        {
+            // MISSION BOX
+            float contentW = ImGui::GetContentRegionAvail().x;
+            ImVec2 boxStart = ImGui::GetCursorScreenPos();
 
-        ImGui::PushFont(fontHeader);
-        ImGui::TextColored(whiteCol, "%s", questManager.GetCurrentTitle());
-        ImGui::PopFont();
+            ImGui::PushFont(fontMono);
+            ImGui::TextColored(goldCol, "CURRENT MISSION");
+            ImGui::PopFont();
 
-        ImGui::PushFont(fontUI);
-        ImGui::PushStyleColor(ImGuiCol_Text, greyCol);
-        ImGui::TextWrapped("%s", questManager.GetCurrentDescription());
-        ImGui::PopStyleColor();
-        ImGui::PopFont();
+            ImGui::PushFont(fontHeader);
+            ImGui::TextColored(whiteCol, "%s", questManager.GetCurrentTitle());
+            ImGui::PopFont();
 
-        ImGui::Spacing();
-        ImGui::Separator();
-        ImGui::Spacing();
+            ImGui::PushFont(fontUI);
+            ImGui::PushStyleColor(ImGuiCol_Text, greyCol);
+            ImGui::TextWrapped("%s", questManager.GetCurrentDescription());
+            ImGui::PopStyleColor();
+            ImGui::PopFont();
 
-        // BUTTONS
-        float btnHeight = 40.0f * scale;
-        ImGui::PushFont(fontUI);
+            ImGui::Dummy(ImVec2(0, 10.0f * scale)); // Padding inside box
+            ImVec2 boxEnd = ImGui::GetCursorScreenPos();
+            boxEnd.x += contentW;
 
-        // Return to Game
-        if (ImGui::Button("Return to Game", ImVec2(-1, btnHeight))) {
-            isGamePaused = false;
+            // Draw the Dark Box behind the text we just wrote
+            winDraw->AddRectFilled(
+                ImVec2(boxStart.x - 10 * scale, boxStart.y - 10 * scale),
+                ImVec2(boxEnd.x + 10 * scale, boxEnd.y),
+                ImGui::ColorConvertFloat4ToU32(darkBg),
+                4.0f * scale
+            );
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            float btnHeight = 40.0f * scale;
+            ImGui::PushFont(fontUI);
+
+            // Return
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10 * scale, 0));
+
+            if (ImGui::Button("Return to Game", ImVec2(-1, btnHeight))) {
+                isGamePaused = false;
+            }
+
+            // Controls
+            if (ImGui::Button("Controls", ImVec2(-1, btnHeight))) {
+                showControls = true;
+            }
+
+            // Display Mode
+            const char* modeText = isFullscreen ? "FULLSCREEN" : "WINDOWED";
+            if (ImGui::Button("Display Mode", ImVec2(-1, btnHeight))) {
+                isFullscreen = !isFullscreen;
+            }
+
+            ImVec2 btnMax = ImGui::GetItemRectMax();
+            ImVec2 btnMin = ImGui::GetItemRectMin();
+            float textY = btnMin.y + (btnHeight - ImGui::GetFontSize()) / 2.0f;
+
+            winDraw->AddText(ImVec2(btnMax.x - ImGui::CalcTextSize(modeText).x - 15 * scale, textY), ImGui::ColorConvertFloat4ToU32(goldCol), modeText);
+
+            // Exit : Push Red Text for just this button
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.3f, 0.3f, 1.0f));
+            if (ImGui::Button("Exit Game", ImVec2(-1, btnHeight))) {
+                exit(0);
+            }
+            ImGui::PopStyleColor(); // Pop Red Text
+
+            ImGui::PopStyleVar(); // Pop FramePadding
+            ImGui::PopFont();
         }
+        // CONTROLS
+        else
+        {
+            ImGui::PushFont(fontMono);
+            if (ImGui::BeginTable("KeysTable", 2, ImGuiTableFlags_SizingStretchSame))
+            {
+                auto DrawKeyRow = [&](const char* act, const char* key) {
+                    ImGui::TableNextColumn();
+                    ImGui::TextColored(greyCol, "%s", act);
+                    ImGui::TableNextColumn();
+                    TextRightAligned(key, goldCol);
+                    };
+                DrawKeyRow("Movement", "[ W A S D ]");
+                DrawKeyRow("Look", "[ MOUSE ]");
+                DrawKeyRow("Shoot Gun", "[ L-CLICK ]");
+                DrawKeyRow("Shoot Antidote", "[ R-CLICK ]");
+                DrawKeyRow("Dev Menu", "[ INSERT ]");
+                DrawKeyRow("Pause", "[ ESC ]");
+                ImGui::EndTable();
+            }
+            ImGui::PopFont();
 
-        // Display Mode
-        const char* modeText = isFullscreen ? "FULLSCREEN" : "WINDOWED";
+            ImGui::Dummy(ImVec2(0, 30.0f * scale));
+            ImGui::Separator();
+            ImGui::Spacing();
 
-        if (ImGui::Button("##DisplayMode", ImVec2(-1, btnHeight))) {
-            isFullscreen = !isFullscreen;
+            ImGui::PushFont(fontUI);
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10 * scale, 0));
+            if (ImGui::Button("Back", ImVec2(-1, 40.0f * scale))) {
+                showControls = false;
+            }
+            ImGui::PopStyleVar();
+            ImGui::PopFont();
         }
-
-        ImVec2 btnMin = ImGui::GetItemRectMin();
-        ImVec2 btnMax = ImGui::GetItemRectMax();
-        float textY = btnMin.y + (btnHeight - ImGui::GetFontSize()) / 2.0f;
-
-        // "Display Mode" (Left)
-        ImGui::GetWindowDrawList()->AddText(ImVec2(btnMin.x + 10 * scale, textY), ImGui::ColorConvertFloat4ToU32(greyCol), "Display Mode");
-
-        // Value (Right, Gold)
-        float valWidth = ImGui::CalcTextSize(modeText).x;
-        ImGui::GetWindowDrawList()->AddText(ImVec2(btnMax.x - valWidth - 10 * scale, textY), ImGui::ColorConvertFloat4ToU32(goldCol), modeText);
-
-        // Exit Game
-        if (ImGui::Button("Exit Game", ImVec2(-1, btnHeight))) {
-            exit(0);
-        }
-
-        ImGui::PopFont();
     }
     ImGui::End();
 
-    ImGui::PopStyleVar(3); // Padding, Rounding, Spacing
+    ImGui::PopStyleVar(4); // Padding, Rounding, Spacing, TextAlign
     ImGui::PopStyleColor(5);
 }
 
