@@ -116,7 +116,8 @@ glm::vec3 lightPos = glm::vec3(-180.0f, 100.0f, -200.0f);
 
 struct Player {
 	//Transform
-	glm::vec3 position = glm::vec3(1.0f, -19.0f, 1.0f);
+	// glm::vec3 position = glm::vec3(1.0f, -19.0f, 1.0f); // corner of the streets
+	glm::vec3 position = glm::vec3(-176.0f + 6.0f, -19.0f, 137.0f);
 	float yaw = 0.0f;
 	// Movement
 	float moveSpeed = 20.0f;
@@ -145,6 +146,13 @@ struct Player {
 };
 Player player;
 
+// Monster State
+enum class MonsterState {
+	Infected,
+	Cured,
+	Dead
+};
+
 // Monsters
 struct Monster {
 	// Transform
@@ -158,11 +166,14 @@ struct Monster {
 	float bodyScale;
 	// Animation
 	float walkCycle = 0.0f; // accumulates movement
+
+	MonsterState state = MonsterState::Infected;
 };
 float spawnInterval = 3.0f;       // seconds between monster spawns
 float timeSinceLastSpawn = 0.0f;  // accumulates time
 float spawnDistance = 5.0f;      // min distance from player
 std::vector<Monster> monsters;
+const int MAX_MONSTERS_ON_MAP = 15;
 
 // Bullet
 struct Bullet {
@@ -173,6 +184,7 @@ std::vector<Bullet> bullets;
 float bulletSpawnTimer = 0.0f;
 const float BULLET_SPAWN_INTERVAL = 5.0f; 
 const float BULLET_COLLECT_RADIUS = 2.0f;
+const int MAX_BULLETS_ON_MAP = 15;
 
 // Flying bullet
 struct FlyingBullet {
@@ -181,7 +193,7 @@ struct FlyingBullet {
 	glm::mat4 rot;     // store full orientation
 	float spin = 0.0f;
 	float spinSpeed = 60.0f;
-	float speed = 10.0f;
+	float speed = 100.0f;
 	float lifeTime = 10.0f;
 };
 std::vector<FlyingBullet> flyingBullets;
@@ -665,7 +677,7 @@ int main()
 			{
 				if (glm::distance(it->position, monsters[i].position + glm::vec3(0, 1.2f, 0)) < 0.6f)
 				{
-					player.score += 500;
+					player.score += 200;
 					monsters.erase(monsters.begin() + i);
 					hit = true;
 
@@ -700,7 +712,10 @@ int main()
 				if (glm::distance(it->position, monsters[i].position + glm::vec3(0, 1.2f, 0)) < 0.6f)
 				{
 					player.score += 500;
-					monsters.erase(monsters.begin() + i);
+					//monsters.erase(monsters.begin() + i);
+					monsters[i].state = MonsterState::Cured;
+					monsters[i].speed = 0.0f;          // Stop chasing
+					monsters[i].damageRadius = 0.0f;   // No longer harmful
 					hit = true;
 
 					// --- QUEST 4: TEST CURE (GAME WIN) ---
@@ -815,7 +830,7 @@ int main()
 				if (dist < ITEM_COLLECT_RADIUS) {
 					player.trashCount++;
 
-					player.score += 150;
+					//player.score += 150;
 
 					if (player.hp < player.maxHp) // Heal player on collection
 					{
@@ -829,7 +844,7 @@ int main()
 					if (player.trashCount >= player.maxAntidoteBackpack) {
 						player.trashCount = 0; // Reset Trash Counter
 						player.antidoteCount++;   // Gain 1 Antidote
-						player.score += 350; // Bonus Score for crafting
+						//player.score += 350; // Bonus Score for crafting
 						std::cout << ">>> CRAFTED ANTIDOTE! Total: " << player.antidoteCount << " <<<" << std::endl;
 
 						// QUEST 3: SYNTHESIZE CURE
@@ -850,15 +865,24 @@ int main()
 		bulletSpawnTimer += deltaTime;
 		if (bulletSpawnTimer >= BULLET_SPAWN_INTERVAL) {
 			bulletSpawnTimer = 0.0f;
-			for (int i = 0; i < 10; i++) {
-				float randomX = townMinX + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (townMaxX - townMinX)));
-				float randomZ = townMinZ + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (townMaxZ - townMinZ)));
-				
-				if (!collidesWithBuildings(glm::vec3(randomX, -18.5f, randomZ)) &&
-					!collidesWithTrees(glm::vec3(randomX, -18.5f, randomZ)))
-				bullets.push_back({glm::vec3(randomX, -18.5f, randomZ), 90.0f});
-			}
-			std::cout << "Bullets spawned!" << std::endl;
+
+			if (bullets.size() < MAX_BULLETS_ON_MAP)
+			{
+				int bulletsToSpawn = std::min(
+					10,
+					MAX_BULLETS_ON_MAP - static_cast<int>(bullets.size())
+				);
+
+				for (int i = 0; i < bulletsToSpawn; i++) {
+					float randomX = townMinX + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (townMaxX - townMinX)));
+					float randomZ = townMinZ + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (townMaxZ - townMinZ)));
+
+					if (!collidesWithBuildings(glm::vec3(randomX, -18.5f, randomZ)) &&
+						!collidesWithTrees(glm::vec3(randomX, -18.5f, randomZ)))
+						bullets.push_back({ glm::vec3(randomX, -18.5f, randomZ), 90.0f });
+				}
+				std::cout << "Bullets spawned! On map: " << bullets.size() << std::endl;
+			}			
 		}
 
 		for (auto it = bullets.begin(); it != bullets.end(); ) {
@@ -869,7 +893,7 @@ int main()
 				if (player.bulletCount < player.maxGunAmmo)
 				{
 					player.bulletCount += 1;
-					player.score += 200;
+					//player.score += 200;
 					std::cout << "Bullet collected! Ammo: " << player.bulletCount << std::endl;
 
 					// --- QUEST 0: SCAVENGE AMMO ---
@@ -973,28 +997,32 @@ int main()
 		{
 			timeSinceLastSpawn = 0.0f;
 
-			Monster m;
-			int attempt = 5;
+			if (monsters.size() < MAX_MONSTERS_ON_MAP)
+			{
+				Monster m;
+				int attempt = 5;
 
-			while (attempt--) {
-				float offsetX = ((float)rand() / RAND_MAX - 0.5f) * spawnDistance * 2.0f;
-				float offsetZ = ((float)rand() / RAND_MAX - 0.5f) * spawnDistance * 2.0f;
+				while (attempt--) {
+					float offsetX = ((float)rand() / RAND_MAX - 0.5f) * spawnDistance * 2.0f;
+					float offsetZ = ((float)rand() / RAND_MAX - 0.5f) * spawnDistance * 2.0f;
 
-				m.position = glm::vec3(
-					glm::clamp(player.position.x + offsetX, townMinX, townMaxX),
-					player.position.y,
-					glm::clamp(player.position.z + offsetZ, townMinZ, townMaxZ)
-				);
-				m.bodyScale = 1.0f;
+					m.position = glm::vec3(
+						glm::clamp(player.position.x + offsetX, townMinX, townMaxX),
+						//player.position.y,
+						BASE_HEIGHT + 0.5f,
+						glm::clamp(player.position.z + offsetZ, townMinZ, townMaxZ)
+					);
+					m.bodyScale = 1.0f;
 
-				float distToPlayer = glm::length(m.position - player.position);
-				if (distToPlayer < spawnDistance)
-					continue;
+					float distToPlayer = glm::length(m.position - player.position);
+					if (distToPlayer < spawnDistance)
+						continue;
 
-				if (!collidesWithBuildings(m.position))
-				{
-					monsters.push_back(m);
-					break;
+					if (!collidesWithBuildings(m.position))
+					{
+						monsters.push_back(m);
+						break;
+					}
 				}
 			}
 		}
@@ -1021,7 +1049,7 @@ int main()
 		front.z = sin(glm::radians(camYaw)) * cos(glm::radians(camPitch));
 		front = glm::normalize(front);
 
-		glm::vec3 eyeOffset = glm::vec3(0.0f, 1.4f, 0.0f);
+		glm::vec3 eyeOffset = glm::vec3(0.0f, 2.0f, 0.0f);
 		camera.setCameraPosition(player.position + eyeOffset);
 		camera.setCameraViewDirection(front);
 
@@ -1295,8 +1323,7 @@ int main()
 		}*/
 
 		bodyShader.use();
-		glUniform3f(glGetUniformLocation(bodyShader.getId(), "bodyColor"), 0.0f, 1.0f, 0.0f);
-
+		//glUniform3f(glGetUniformLocation(bodyShader.getId(), "bodyColor"), 0.0f, 1.0f, 0.0f
 
 		for (int i = 0; i < monsters.size(); i++)
 		{
@@ -1305,8 +1332,24 @@ int main()
 			float distance = glm::length(dir);
 			float distanceToPlayer = glm::distance(player.position, m.position);
 
+			if (m.state == MonsterState::Infected) {
+				glUniform3f(
+					glGetUniformLocation(bodyShader.getId(), "bodyColor"),
+					0.6f, 0.2f, 0.2f   // red
+				);
+			}
+			else if (m.state == MonsterState::Cured) {
+				glUniform3f(
+					glGetUniformLocation(bodyShader.getId(), "bodyColor"),
+					0.2f, 0.8f, 0.2f   // green
+				);
+			}
+
+			if (m.state == MonsterState::Cured)
+				m.walkCycle += deltaTime * 0.3f;
+
 			// --- DAMAGE LOGIC START ---
-			if (distance < player.damageRadius) {
+			if (m.state == MonsterState::Infected && distance < player.damageRadius) {
 				// 10% Damage per second
 				float damage = (player.maxHp * 0.10f) * deltaTime;
 				player.hp -= damage;
@@ -1334,6 +1377,8 @@ int main()
 				m.yaw = glm::degrees(atan2(dir.z, dir.x)) + 90.0f;
 				m.walkCycle += moveStep * player.walkSpeedFactor;
 			}
+
+			
 
 			/*// Crosshair kill logic
 			if (shotFired && IsMonsterTargeted(m, rayOrigin, rayDir, 2.0f) && distanceToPlayer <= player.maxHitDistance)
@@ -1397,7 +1442,7 @@ int main()
 				glm::mat4 leftArmMVP = ProjectionMatrix * ViewMatrix * leftArm;
 				glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &leftArmMVP[0][0]);
 				glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &leftArm[0][0]);
-				box.draw(bodyShader);
+				bodyBox.draw(bodyShader);
 				totalRenderedObjects++;
 
 				// Right arm
@@ -1453,7 +1498,8 @@ int main()
 			player.score = 0; // Reset Score
 			player.bulletCount = 0;
 			player.trashCount = 0; // Clear Backpack
-			player.position = glm::vec3(1.0f, -19.0f, 1.0f); // Reset Position
+			player.antidoteCount = 0; // Clear Antidotes
+			player.position = glm::vec3(-176.0f + 6.0f, -19.0f, 137.0f); // Reset Position
 			monsters.clear(); // Clear enemies
 		}
 
