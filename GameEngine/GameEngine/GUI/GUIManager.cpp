@@ -1085,8 +1085,6 @@ void GUIManager::Render(const glm::vec3& playerPos, int screenWidth, int screenH
                 if (DrawToggleSwitch("Day / Night Cycle", &dayNightCycle)) {
                     AddLog(dayNightCycle ? "[SCENE] Changed to Night Scene" : "[SCENE] Changed to Day Scene");
                 }
-                ImGui::Spacing();
-                DrawToggleSwitch("Enable Animation", &enableAnimation);
 
                 ImGui::Spacing();
             }
