@@ -10,10 +10,6 @@
 #include "GUI/GUIManager.h"
 #include "Mountain/mountain.h"
 
-// QUEST TRACKING
-int questBulletsCollected = 0;
-int questMonstersKilled = 0;
-
 float deathScreenTimer = 0.0f;
 bool changeScreen = false;
 bool lastChange = false;
@@ -116,11 +112,10 @@ Camera camera;
 
 // Light
 glm::vec3 lightColor = glm::vec3(1.0f);
-glm::vec3 lightPos = glm::vec3(-180.0f, 100.0f, -200.0f);
+glm::vec3 lightPos = glm::vec3(-180.0f, 250.0f, 100.0f);
 
 struct Player {
 	//Transform
-	// glm::vec3 position = glm::vec3(1.0f, -19.0f, 1.0f); // corner of the streets
 	glm::vec3 position = glm::vec3(-176.0f + 6.0f, -19.0f, 137.0f);
 	float yaw = 0.0f;
 	// Movement
@@ -132,7 +127,7 @@ struct Player {
 	float damageRadius = 1.5f;
 	float damageFlashTimer = 0.0f;
 	// Combat
-	// float fireCooldown = 0.0f;
+	bool canShoot = false;
 	float maxHitDistance = 10.0f;
 	// Inventory
 	int bulletCount = 0;
@@ -143,6 +138,8 @@ struct Player {
 	bool hasRecipe = false;
 	// Progress
 	int score = 0;
+	int bulletsCollected = 0;
+	int monstersKilled = 0;
 	// Animation
 	float walkCycle = 0.0f;
 	float walkSpeedFactor = 5.0f;
@@ -163,8 +160,8 @@ struct Monster {
 	glm::vec3 position;
 	float yaw = 0.0f;
 	// Movement
-	float speed = 5.0f;
-	float chaseDistance = 10.0f;
+	float speed = 10.0f;
+	float chaseDistance = 50.0f;
 	float damageRadius = 1.5f;
 	// Scale
 	float bodyScale;
@@ -197,7 +194,7 @@ struct FlyingBullet {
 	glm::mat4 rot;     // store full orientation
 	float spin = 0.0f;
 	float spinSpeed = 60.0f;
-	float speed = 100.0f;
+	float speed = 60.0f;
 	float lifeTime = 10.0f;
 };
 std::vector<FlyingBullet> flyingBullets;
@@ -510,7 +507,7 @@ int main()
 	Mesh mountainMesh = generateMountainMesh(cfg, mountainTextures);
 
 	// Spawn Trees
-	//spawnTrees(terrainTiles, trees);
+	spawnTrees(terrainTiles, trees);
 	// Big Tree
 	Tree bigTree;
 	bigTree.position = glm::vec3(-176.0f, -21.5f, 137.0f);
@@ -537,17 +534,18 @@ int main()
 		totalRenderedObjects = 0;
 
 		// Left mouse click
-		// Left mouse click
 		static bool leftClickedLastFrame = false;
 		bool leftClickNow = glfwGetMouseButton(window.getWindow(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
 		bool justLeftClicked = leftClickNow && !leftClickedLastFrame;
 		leftClickedLastFrame = leftClickNow;
 
+		// Right mouse click
 		static bool rightClickedLastFrame = false;
 		bool rightClickNow = glfwGetMouseButton(window.getWindow(), GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
 		bool justRightClicked = rightClickNow && !rightClickedLastFrame;
 		rightClickedLastFrame = rightClickNow;
 
+		// Space click
 		static bool spacePressedLastFrame = false;
 		bool spaceNow = window.isPressed(GLFW_KEY_SPACE);
 		bool justPressedSpace = spaceNow && !spacePressedLastFrame;
@@ -600,7 +598,7 @@ int main()
 			glfwSetInputMode(window.getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 		}
 
-		// --- FULLSCREEN SWITCHING LOGIC ---
+		// FULLSCREEN SWITCHING LOGIC 
 		GLFWwindow* nativeWin = window.getWindow();
 		bool currentIsFullscreen = (glfwGetWindowMonitor(nativeWin) != nullptr);
 
@@ -626,7 +624,9 @@ int main()
 
 		if (!gui.showGUI && !gui.isGamePaused && justLeftClicked)
 		{
-			if (player.bulletCount > 0)
+			if (!player.canShoot)
+				std::cout << "You must collect 5 bullets first!" << std::endl;
+			else if (player.bulletCount > 0)
 			{
 				player.bulletCount--;
 				gui.TriggerGunShootAnimation();
@@ -702,10 +702,10 @@ int main()
 					monsters.erase(monsters.begin() + i);
 					hit = true;
 
-					// --- QUEST 1: KILL 3 MONSTERS ---
+					// QUEST 1: KILL 3 MONSTERS
 					if (gui.questManager.GetCurrentIndex() == 1) {
-						questMonstersKilled++;
-						if (questMonstersKilled >= 3) {
+						player.monstersKilled++;
+						if (player.monstersKilled >= 3) {
 							gui.questManager.CompleteCurrentQuest();
 						}
 					}
@@ -739,7 +739,7 @@ int main()
 					monsters[i].damageRadius = 0.0f;   // No longer harmful
 					hit = true;
 
-					// --- QUEST 4: TEST CURE (GAME WIN) ---
+					// QUEST 4: TEST CURE (GAME WIN)
 					if (gui.questManager.GetCurrentIndex() == 4) {
 						gui.questManager.CompleteCurrentQuest();
 						std::cout << ">>> MISSION ACCOMPLISHED <<<" << std::endl;
@@ -799,7 +799,7 @@ int main()
 			player.hasRecipe = true;
 			std::cout << "You found a recipe!" << std::endl;
 
-			// QUEST 2 COMPLETE
+			// QUEST 2 RECIPE FOUND
 			if (gui.questManager.GetCurrentIndex() == 2) {
 				gui.questManager.CompleteCurrentQuest();
 			}
@@ -910,18 +910,18 @@ int main()
 			float dist = glm::distance(player.position, it->position);
 			if (dist < BULLET_COLLECT_RADIUS) {
 
-				// NEW: Check Limit
+				// Check Limit
 				if (player.bulletCount < player.maxGunAmmo)
 				{
 					player.bulletCount += 1;
-					//player.score += 200;
 					std::cout << "Bullet collected! Ammo: " << player.bulletCount << std::endl;
 
-					// --- QUEST 0: SCAVENGE AMMO ---
+					// QUEST 0: SCAVENGE AMMO 
 					if (gui.questManager.GetCurrentIndex() == 0) {
-						questBulletsCollected++;
-						if (questBulletsCollected >= 5) {
+						player.bulletsCollected++;
+						if (player.bulletsCollected >= 5) {
 							gui.questManager.CompleteCurrentQuest();
+							player.canShoot = true;
 						}
 					}
 
@@ -953,7 +953,6 @@ int main()
 		}
 
 		float velocity = player.moveSpeed * deltaTime;
-		// float rotVelocity = player.rotationSpeed * deltaTime;
 
 		// Mouse Input
 		double xpos, ypos;
@@ -971,14 +970,8 @@ int main()
 		lastY = ypos;
 
 		ImGuiIO& io = ImGui::GetIO();
-		//if (!io.WantCaptureMouse && !gui.showGUI)
-		//{
-		//camYaw += xoffset;
-		//camPitch += yoffset;
-		//camPitch = glm::clamp(camPitch, -60.0f, 10.0f);
-		//}
 
-	// Camera Directions
+		// Camera Directions
 		glm::vec3 camForward = camera.getCameraViewDirection();
 		camForward.y = 0.0f;
 		camForward = glm::normalize(camForward);
@@ -1030,7 +1023,6 @@ int main()
 
 					m.position = glm::vec3(
 						glm::clamp(player.position.x + offsetX, townMinX, townMaxX),
-						//player.position.y,
 						BASE_HEIGHT + 0.5f,
 						glm::clamp(player.position.z + offsetZ, townMinZ, townMaxZ)
 					);
@@ -1053,16 +1045,6 @@ int main()
 		player.position.x = glm::clamp(player.position.x, mapMinX, mapMaxX);
 		player.position.y = BASE_HEIGHT + 0.1f;
 		player.position.z = glm::clamp(player.position.z, mapMinZ, mapMaxZ);
-
-		/*// Camera orbit
-		glm::vec3 offset;
-		offset.x = cos(glm::radians(camYaw)) * cos(glm::radians(camPitch));
-		offset.y = sin(glm::radians(camPitch));
-		offset.z = sin(glm::radians(camYaw)) * cos(glm::radians(camPitch));
-
-		glm::vec3 cameraPos = playerPos - offset * cameraDistance;
-		camera.setCameraPosition(cameraPos);
-		camera.setCameraViewDirection(playerPos - cameraPos);*/
 
 		// First person camera
 		glm::vec3 front;
@@ -1107,19 +1089,12 @@ int main()
 			glm::radians(player.yaw),
 			glm::vec3(0.0f, 1.0f, 0.0f)
 		);
-		/*ModelMatrix = glm::scale(
-			ModelMatrix,
-			glm::vec3(0.0125f)
-		);*/
 		MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
 		glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &MVP[0][0]);
 		glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
 		glUniform3f(glGetUniformLocation(shader.getId(), "lightColor"), lightColor.x, lightColor.y, lightColor.z);
 		glUniform3f(glGetUniformLocation(shader.getId(), "lightPos"), lightPos.x, lightPos.y, lightPos.z);
 		glUniform3f(glGetUniformLocation(shader.getId(), "viewPos"), camera.getCameraPosition().x, camera.getCameraPosition().y, camera.getCameraPosition().z);
-
-		/*box.draw(shader);
-		totalRenderedObjects++;*/
 
 		if (!changeScreen) {
 			// Draw mountains
@@ -1158,6 +1133,7 @@ int main()
 			}
 		}
 
+		// Outside Ground
 		for (int x = -1; x <= 2; x++)
 		{
 			for (int z = -1; z <= 2; z++)
@@ -1178,6 +1154,7 @@ int main()
 			}
 		}
 
+		// Terrain
 		for (const TerrainTile& terrainTile : terrainTiles) {
 			ModelMatrix = glm::mat4(1.0f);
 			ModelMatrix = glm::translate(ModelMatrix, terrainTile.position);
@@ -1189,10 +1166,10 @@ int main()
 			totalRenderedObjects++;
 		}
 
+		// Buildings
 		for (const Building& building : buildings) {
 			for (const Wall& wall : building.walls) {
 				ModelMatrix = glm::mat4(1.0f);
-				//ModelMatrix = glm::translate(ModelMatrix, building.position);
 				ModelMatrix = glm::translate(ModelMatrix, wall.localPos);
 				ModelMatrix = glm::rotate(ModelMatrix, (90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
 				if (wall.rotateY) {
@@ -1209,6 +1186,7 @@ int main()
 			}
 		}
 
+		// Trees
 		for (const Tree& tree : trees) {
 			if (!tree.alive)
 				continue;
@@ -1220,8 +1198,75 @@ int main()
 					treeModel, 4, 5, 0.6f, 0.2f);
 		}
 
+		// Trash
+		for (const auto& t : trash) {
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, t.position);
+			model = glm::rotate(model, (t.rotationY), glm::vec3(0, 1, 0));
+			model = glm::scale(model, glm::vec3(0.01f));
+
+			glm::mat4 mvp = ProjectionMatrix * ViewMatrix * model;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &mvp[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &model[0][0]);
+
+			trashMesh.draw(shader);
+			totalRenderedObjects++;
+		}
+
+		// Bullets
+		for (const auto& b : bullets) {
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, b.position);
+			model = glm::rotate(model, (b.rotationY), glm::vec3(0, 1, 0));
+			model = glm::scale(model, glm::vec3(0.25f));
+
+			glm::mat4 mvp = ProjectionMatrix * ViewMatrix * model;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &mvp[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &model[0][0]);
+
+			bulletMesh.draw(shader);
+			totalRenderedObjects++;
+		}
+
+		// Flying Bullets
+		for (const auto& fb : flyingBullets)
+		{
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, fb.position);
+			// Bullet Orientation
+			model = model * fb.rot;
+			// Bullet Spin
+			model = model * glm::rotate(glm::mat4(1.0f),
+				fb.spin,
+				glm::vec3(0, 0, 1));
+			model = glm::scale(model, glm::vec3(0.1f));
+
+			glm::mat4 mvp = ProjectionMatrix * ViewMatrix * model;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &mvp[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &model[0][0]);
+			bulletMesh.draw(shader);
+		}
+
+		// Syringes
+		for (const auto& s : syringes)
+		{
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, s.position);
+			// Syringe Orientation
+			model = model * s.rot;
+			// Syringe Spin
+			model = model * glm::rotate(glm::mat4(1.0f),
+				s.spin,
+				glm::vec3(0, 0, 1));
+			model = glm::scale(model, glm::vec3(0.15f));
+
+			glm::mat4 mvp = ProjectionMatrix * ViewMatrix * model;
+			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &mvp[0][0]);
+			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &model[0][0]);
+			syringeMesh.draw(shader);
+		}
+
 		bodyShader.use();
-		//glUniform3f(glGetUniformLocation(bodyShader.getId(), "bodyColor"), 0.0f, 1.0f, 0.0f
 
 		for (int i = 0; i < monsters.size(); i++)
 		{
@@ -1246,7 +1291,7 @@ int main()
 			if (m.state == MonsterState::Cured)
 				m.walkCycle += deltaTime * 0.3f;
 
-			// --- DAMAGE LOGIC START ---
+			// Damage Logic
 			if (m.state == MonsterState::Infected && distance < player.damageRadius) {
 				// 10% Damage per second
 				float damage = (player.maxHp * 0.10f) * deltaTime;
@@ -1255,7 +1300,6 @@ int main()
 				// Trigger Red Flash
 				player.damageFlashTimer = 0.2f;
 			}
-			// --- DAMAGE LOGIC END ---
 
 
 			if (distance < m.chaseDistance && distance > 0.01f) {
@@ -1371,8 +1415,7 @@ int main()
 			}
 		}
 
-
-		// 2. Death / Respawn Check
+		// Death / Respawn Check
 		if (player.hp <= 0.0f) {
 			std::cout << ">>> YOU DIED! <<<" << std::endl;
 
@@ -1392,87 +1435,10 @@ int main()
 			}
 		}
 
-		// 3. Debug Print (Every 1 sec approx, or use ImGui text if available)
-		// We will just print if damaged to avoid spam
-		if (player.damageFlashTimer > 0.15f) { // Only print on initial hit frame approx
-			std::cout << "HP: " << (int)player.hp << " / " << (int)player.maxHp << std::endl;
-		}
-		// -------------------------------
-
-
-		// Trash
-		shader.use();
-		for (const auto& t : trash) {
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, t.position);
-			model = glm::rotate(model, glm::radians(t.rotationY), glm::vec3(0, 1, 0));
-			model = glm::scale(model, glm::vec3(0.01f));
-
-			// Assuming ProjectionMatrix, ViewMatrix, MatrixID2, ModelMatrixID are available in this scope
-			glm::mat4 mvp = ProjectionMatrix * ViewMatrix * model;
-			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &mvp[0][0]);
-			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &model[0][0]);
-
-			trashMesh.draw(shader);
-			totalRenderedObjects++;
-		}
-
-		for (const auto& b : bullets) {
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, b.position);
-			model = glm::rotate(model, (b.rotationY), glm::vec3(0, 1, 0));
-			model = glm::scale(model, glm::vec3(0.25f));
-
-			glm::mat4 mvp = ProjectionMatrix * ViewMatrix * model;
-			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &mvp[0][0]);
-			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &model[0][0]);
-
-			bulletMesh.draw(shader);
-			totalRenderedObjects++;
-		}
-
-		for (const auto& fb : flyingBullets)
-		{
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, fb.position);
-			// Bullet Orientation
-			model = model * fb.rot;
-			// Bullet Spin
-			model = model * glm::rotate(glm::mat4(1.0f),
-				fb.spin,
-				glm::vec3(0, 0, 1));
-			model = glm::scale(model, glm::vec3(0.1f));
-
-			glm::mat4 mvp = ProjectionMatrix * ViewMatrix * model;
-			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &mvp[0][0]);
-			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &model[0][0]);
-			bulletMesh.draw(shader);
-		}
-
-		for (const auto& s : syringes)
-		{
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, s.position);
-			// Syringe Orientation
-			model = model * s.rot;
-			// Syringe Spin
-			model = model * glm::rotate(glm::mat4(1.0f),
-				s.spin,
-				glm::vec3(0, 0, 1));
-			model = glm::scale(model, glm::vec3(0.15f));
-
-			glm::mat4 mvp = ProjectionMatrix * ViewMatrix * model;
-			glUniformMatrix4fv(MatrixID2, 1, GL_FALSE, &mvp[0][0]);
-			glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &model[0][0]);
-			syringeMesh.draw(shader);
-		}
-
 		// Pistol
 		glDisable(GL_DEPTH_TEST);
 
 		glm::vec3 camPos = camera.getCameraPosition();
-		//glm::vec3 camForward = glm::normalize(camera.getCameraViewDirection());
-		//glm::vec3 camRight = glm::normalize(glm::cross(camForward, glm::vec3(0, 1, 0)));
 		glm::vec3 camUp = glm::cross(camRight, camForward);
 
 		glm::vec3 pistolOffset =
@@ -1521,7 +1487,7 @@ int main()
 				gui.showGUI = !gui.showGUI;
 				if (gui.showGUI)
 				{
-					// MENU OPENED: Show Cursor let it move freely
+					// Menu Opened
 					glfwSetInputMode(window.getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
 					// Reset ImGui mouse states so it doesn't think you are dragging
@@ -1530,7 +1496,7 @@ int main()
 				}
 				else
 				{
-					// MENU CLOSED: Hide Cursor lock it to center
+					// Menu Closed
 					glfwSetInputMode(window.getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 					// Reset the "last" mouse position to the current position
